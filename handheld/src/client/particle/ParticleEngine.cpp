@@ -4,10 +4,7 @@
 #include "../renderer/Textures.h"
 #include "../../world/level/Level.h"
 #include "../../NinecraftApp.h"
-
-#ifdef __3DS__
-#include "../../platform/ctr_caps.h"
-#endif
+#include "../../util/CheckNew3DS.h"
 
 ParticleEngine::ParticleEngine(Level* level, Textures* textures)
 :	level(level),
@@ -24,7 +21,7 @@ void ParticleEngine::add(Particle* p) {
 #ifdef __3DS__
     // Old 3DS: частицы выключены полностью (выбор пользователя — выгода
     // в кадрах). На N3DS оставляем cap=64/текстура.
-    if (isOld3ds()) {
+    if (!IsNew3DS()) {
         delete p;
         return;
     }
@@ -124,7 +121,7 @@ void ParticleEngine::destroy(int x, int y, int z) {
 #ifdef __3DS__
     // На O3DS все add() в add() всё равно станут delete — не делаем 18 new+
     // tesselateBlock + delete впустую.
-    if (isOld3ds()) return;
+    if (!IsNew3DS()) return;
 #endif
     int tid = level->getTile(x, y, z);
     if (tid == 0) return;
@@ -148,7 +145,7 @@ void ParticleEngine::destroy(int x, int y, int z) {
 
 void ParticleEngine::crack(int x, int y, int z, int face) {
 #ifdef __3DS__
-    if (isOld3ds()) return;
+    if (!IsNew3DS()) return;
 #endif
     int tid = level->getTile(x, y, z);
     if (tid == 0) return;

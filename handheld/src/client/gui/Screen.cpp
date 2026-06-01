@@ -6,6 +6,7 @@
 #include "../sound/SoundEngine.h"
 #include "../../platform/input/Keyboard.h"
 #include "../../platform/input/Mouse.h"
+#include "Gui.h"
 #include "../renderer/Textures.h"
 
 #ifdef __3DS__
@@ -49,6 +50,8 @@ void Screen::init()
 
 void Screen::setSize( int width, int height )
 {
+	if (this->width == width && this->height == height)
+		return;
 	this->width = width;
 	this->height = height;
 	setupPositions();
@@ -80,12 +83,22 @@ void Screen::mouseEvent()
 		return;
 
 	if (Mouse::getEventButtonState()) {
+#ifdef __3DS__
+		int xm = (int)(e.x * Gui::InvGuiScale);
+		int ym = (int)(e.y * Gui::InvGuiScale);
+#else
 		int xm = e.x * width / minecraft->width;
 		int ym = e.y * height / minecraft->height - 1;
+#endif
 		mouseClicked(xm, ym, Mouse::getEventButton());
 	} else {
+#ifdef __3DS__
+		int xm = (int)(e.x * Gui::InvGuiScale);
+		int ym = (int)(e.y * Gui::InvGuiScale);
+#else
 		int xm = e.x * width / minecraft->width;
 		int ym = e.y * height / minecraft->height - 1;
+#endif
 		mouseReleased(xm, ym, Mouse::getEventButton());
 	}
 }
@@ -261,6 +274,11 @@ void Screen::lostFocus() {
 }
 
 void Screen::toGUICoordinate( int& x, int& y ) {
+#ifdef __3DS__
+	x = (int)(x * Gui::InvGuiScale);
+	y = (int)(y * Gui::InvGuiScale);
+#else
 	x = x * width / minecraft->width;
 	y = y * height / minecraft->height - 1;
+#endif
 }

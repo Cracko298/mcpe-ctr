@@ -13,7 +13,6 @@
 #include "../../../util/RakDataIO.h"
 #include "../../../raknet/GetTime.h"
 #include "../tile/entity/TileEntity.h"
-#include "../../../util/FrameProf.h"
 
 static const int ChunkVersion_Light = 1;
 static const int ChunkVersion_Entity = 2;
@@ -289,7 +288,6 @@ bool ExternalFileLevelStorage::readPlayerData(const std::string& filename, Level
 
 void ExternalFileLevelStorage::tick()
 {
-	FP_SCOPE("70.fileStorage.tick");
 	tickCount++;
 	if ((tickCount % 50) == 0 && level)
 	{
@@ -334,7 +332,6 @@ void ExternalFileLevelStorage::tick()
 
 void ExternalFileLevelStorage::save(Level* level, LevelChunk* levelChunk)
 {
-	FP_SCOPE("71.fileStorage.save");
 	if (!regionFile)
 	{
 		regionFile = new RegionFile(levelPath);

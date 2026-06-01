@@ -31,6 +31,7 @@ public:
 	void zoomRegion(float zoom, float xa, float ya);
 	void unZoomRegion();
 	void setupGuiScreen(bool clearColorBuffer);
+	void setupGuiScreen(bool clearColorBuffer, int targetWidth, int targetHeight);
 
 	void tick(int nTick, int maxTick);
 	void render(float a);

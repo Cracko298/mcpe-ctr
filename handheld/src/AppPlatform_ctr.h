@@ -100,11 +100,15 @@ public:
 
 		FILE* fd = fopen(fullAssetPath.c_str(), "rb");
 		if (!fd) {
-			fullAssetPath = "romfs:/data/" + filename;
+			fullAssetPath = "romfs:/" + filename;
 			fd = fopen(fullAssetPath.c_str(), "rb");
 			if (!fd) {
-				LOGI("failed to open: %s\n", fullAssetPath.c_str());
-				return BinaryBlob();
+				fullAssetPath = "romfs:/data/" + filename;
+				fd = fopen(fullAssetPath.c_str(), "rb");
+				if (!fd) {
+					LOGI("failed to open: %s\n", fullAssetPath.c_str());
+					return BinaryBlob();
+				}
 			}
 		}
 
@@ -131,14 +135,14 @@ public:
 		TextureData out;
 		out.data = nullptr;
 
-		std::string filepath = textureFolder ? "romfs:/data/images/" + filename_ : "romfs:/" + filename_;
+		std::string filepath = textureFolder ? "romfs:/images/" + filename_ : "romfs:/" + filename_;
 		
 		FILE* fd = fopen(filepath.c_str(), "rb");
 		if (!fd) {
-			filepath = "sdmc:/3ds/minecraftpe/images/" + filename_;
+			filepath = textureFolder ? "romfs:/data/images/" + filename_ : "romfs:/data/" + filename_;
 			fd = fopen(filepath.c_str(), "rb");
 			if (!fd) {
-				filepath = "sdmc:/3ds/minecraftpe/" + filename_;
+				filepath = "sdmc:/3ds/minecraftpe/images/" + filename_;
 				fd = fopen(filepath.c_str(), "rb");
 				if (!fd) {
 					LOGI("failed to open: %s\n", filepath.c_str());
