@@ -42,11 +42,16 @@ public:
 
 	void tick();
 	void render(float a, bool mouseFree, int xMouse, int yMouse);
+	int getGuiWidth() const;
+	int getGuiHeight() const;
 #ifdef __3DS__
+	int getBottomGuiWidth() const;
+	int getBottomGuiHeight() const;
 	void renderTopHud(float a);
 	void renderBottomHotbar(float a);
 	void renderBottomDirt(float a);
 	void renderHotbarOnTop(float a);
+	void setBottomScreenLayout(bool enabled);
 	void buildWorldMinimap();
 	void renderWorldMinimap(float a);
 	void renderCamZoneHint(float a);
@@ -107,6 +112,9 @@ public:
 	static float ScissorScaleY;
 
 private:
+#ifdef __3DS__
+	bool _bottomScreenLayout;
+#endif
 	int MAX_MESSAGE_WIDTH;
 	//ItemRenderer itemRenderer;
 	GuiMessageList guiMessages;

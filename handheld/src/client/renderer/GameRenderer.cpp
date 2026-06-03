@@ -2,7 +2,6 @@
 #include "gles.h"
 
 #include "../../util/PerfTimer.h"
-#include "../../util/FrameProf.h"
 
 #include "LevelRenderer.h"
 #include "ItemInHandRenderer.h"
@@ -261,7 +260,6 @@ void GameRenderer::render(float a) {
 
 #ifdef __3DS__
 void GameRenderer::renderDualScreen3ds(float a) {
-	FP_SCOPE("10.dualScreen3ds");
 	TIMER_PUSH("mouse");
 	if (mc->player && mc->mouseGrabbed) {
         mc->mouseHandler.poll();
@@ -313,30 +311,26 @@ void GameRenderer::renderDualScreen3ds(float a) {
 	nova_set_render_target(kTopRenderTarget);
 	Gui::ScissorScaleX = Gui::GuiScale;
 	Gui::ScissorScaleY = Gui::GuiScale;
+	mc->gui.setBottomScreenLayout(false);
 	glViewport(0, 0, mc->width, mc->height);
 	if (mc->isLevelGenerated()) {
-		FP_BEGIN("11.top.level");
 		TIMER_PUSH("level");
 		if (_t_keepPic < 0) {
 			renderLevel(a);
 		}
 		TIMER_POP();
-		FP_END();
 
 		if (!mc->options.hideGui) {
 			const int hudEyes = (g_stereoNativeActive && g_stereoEyeCount > 1) ? g_stereoEyeCount : 1;
 			for (int hudEye = 0; hudEye < hudEyes; hudEye++) {
 				if (hudEyes > 1) nova_set_render_target(hudEye);
-				FP_BEGIN("12.top.hud");
 				TIMER_PUSH("hud");
-				setupGuiScreen(false);
+				setupGuiScreen(false, mc->width, mc->height);
 				mc->gui.renderTopHud(a);
 				TIMER_POP();
-				FP_END();
 
 				// Хотбар на верхнем экране — только когда нижний скрыт под экраном.
 				if (screenHidesHotbar) {
-					FP_SCOPE("12c.top.hotbar");
 					mc->gui.renderHotbarOnTop(a);
 				}
 			}
@@ -346,8 +340,10 @@ void GameRenderer::renderDualScreen3ds(float a) {
 		for (int menuEye = 0; menuEye < menuEyes; menuEye++) {
 			if (menuEyes > 1) nova_set_render_target(menuEye);
 			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-			setupGuiScreen(true);
+			setupGuiScreen(true, mc->width, mc->height);
 			if (mc->screen != NULL && mc->screen->renderOnTopScreen3ds()) {
+				mc->screen->setSize((int)(mc->width * Gui::InvGuiScale),
+									(int)(mc->height * Gui::InvGuiScale));
 				Screen::s_isRenderingTopScreen3ds = true;
 				mc->screen->render(xMouse, yMouse, a);
 				Screen::s_isRenderingTopScreen3ds = false;
@@ -357,10 +353,11 @@ void GameRenderer::renderDualScreen3ds(float a) {
 
 	nova_set_render_target(kBottomRenderTarget);
 	glViewport(0, 0, kBottomScreenWidth, kBottomScreenHeight);
-	Gui::ScissorScaleX = kBottomScreenWidth / (mc->width * Gui::InvGuiScale);
-	Gui::ScissorScaleY = kBottomScreenHeight / (mc->height * Gui::InvGuiScale);
+	Gui::ScissorScaleX = Gui::GuiScale;
+	Gui::ScissorScaleY = Gui::GuiScale;
+	mc->gui.setBottomScreenLayout(true);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	setupGuiScreen(true);
+	setupGuiScreen(true, kBottomScreenWidth, kBottomScreenHeight);
 
 	// Hotbar (and bottom-screen status) — draw BEFORE an in-game screen so the
 	// screen (chest/crafting/inventory) covers it visually. screenHidesHotbar
@@ -370,32 +367,29 @@ void GameRenderer::renderDualScreen3ds(float a) {
 	// Земляной фон под всё, что рендерится на нижнем экране в игре:
 	// до тач-управления, чтобы кнопки/индикаторы остались видны поверх.
 	if (drawBottomHud) {
-		FP_SCOPE("13.bot.dirt");
 		mc->gui.renderBottomDirt(a);
 	}
 
 	if (mc->isLevelGenerated()) {
 		if (mc->player && mc->screen == NULL) {
-			FP_SCOPE("14.bot.input");
 			if (mc->inputHolder) mc->inputHolder->render(a);
 			if (mc->player->input) mc->player->input->render(a);
 		}
 	}
 
 	if (drawBottomHud) {
-		FP_SCOPE("15.bot.hotbar");
 		mc->gui.renderBottomHotbar(a);
 	}
 
 	// 3DS bottom HUD extras: cam-zone hint and chunk minimap.
 	if (drawBottomHud) {
-		FP_SCOPE("15b.bot.minimap");
 		mc->gui.renderCamZoneHint(a);
 		mc->gui.renderWorldMinimap(a);
 	}
 
 	if (mc->screen != NULL) {
-		FP_SCOPE("16.bot.screen");
+		mc->screen->setSize((int)(kBottomScreenWidth * Gui::InvGuiScale),
+							(int)(kBottomScreenHeight * Gui::InvGuiScale));
 		Screen::s_isRenderingTopScreen3ds = false;
 		mc->screen->render(xMouse, yMouse, a);
 		if (mc->screen && !mc->screen->isInGameScreen())
@@ -404,6 +398,7 @@ void GameRenderer::renderDualScreen3ds(float a) {
 
 	Gui::ScissorScaleX = Gui::GuiScale;
 	Gui::ScissorScaleY = Gui::GuiScale;
+	mc->gui.setBottomScreenLayout(false);
 	nova_set_render_target(kTopRenderTarget);
 }
 #endif
@@ -484,16 +479,13 @@ void GameRenderer::renderLevel(float a) {
 
 		TIMER_POP_PUSH("culling");
 		{
-			FP_SCOPE("20.cull");
 			mc->levelRenderer->cull(&frustum, a);
 		}
 		{
-			FP_SCOPE("21.updateDirtyChunks");
 			mc->levelRenderer->updateDirtyChunks(cameraEntity, false);
 		}
 
 		if(mc->options.fancyGraphics) {
-			FP_SCOPE("22.clouds");
 			prepareAndRenderClouds(levelRenderer, a);
 		}
 
@@ -506,27 +498,23 @@ void GameRenderer::renderLevel(float a) {
         glEnable2(GL_CULL_FACE);
 		TIMER_POP_PUSH("terrain-0");
 		{
-			FP_SCOPE("23.terrain-0");
 			levelRenderer->render(cameraEntity, 0, a);
 		}
 
 		TIMER_POP_PUSH("terrain-1");
         glEnable2(GL_ALPHA_TEST);
 		{
-			FP_SCOPE("24.terrain-1");
 			levelRenderer->render(cameraEntity, 1, a);
 		}
 
         glShadeModel2(GL_FLAT);
 		TIMER_POP_PUSH("entities");
 		{
-			FP_SCOPE("25.entities");
 			mc->levelRenderer->renderEntities(cameraEntity->getPos(a), &frustum, a);
 		}
 //        setupFog(0);
 		TIMER_POP_PUSH("particles");
 		{
-			FP_SCOPE("26.particles");
 			particleEngine->render(cameraEntity, a);
 		}
 
@@ -554,7 +542,6 @@ void GameRenderer::renderLevel(float a) {
 			//glDepthRangef(0.1f, 1.0f);
 			//glDepthMask(GL_FALSE);
 			TIMER_POP_PUSH("terrain-water");
-			FP_SCOPE("27.terrain-water");
 			glEnable2(GL_DEPTH_TEST);
             levelRenderer->render(cameraEntity, 2, a);
 			//glDepthRangef(0, 1);
@@ -1072,8 +1059,13 @@ void GameRenderer::unZoomRegion()
 
 void GameRenderer::setupGuiScreen( bool clearColorBuffer )
 {
-	int screenWidth = (int)(mc->width * Gui::InvGuiScale);
-	int screenHeight = (int)(mc->height * Gui::InvGuiScale);
+	setupGuiScreen(clearColorBuffer, mc->width, mc->height);
+}
+
+void GameRenderer::setupGuiScreen( bool clearColorBuffer, int targetWidth, int targetHeight )
+{
+	int screenWidth = (int)(targetWidth * Gui::InvGuiScale);
+	int screenHeight = (int)(targetHeight * Gui::InvGuiScale);
 
 	// Setup GUI render mode
 	GLbitfield clearBits = clearColorBuffer?

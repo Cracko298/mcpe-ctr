@@ -18,18 +18,14 @@
 
 #include "GameRenderer.h"
 #include "../../AppPlatform.h"
+#include "../../util/CheckNew3DS.h"
 #include "../../util/PerfTimer.h"
 #include "Textures.h"
-#include "../../util/FrameProf.h"
 #include "tileentity/TileEntityRenderDispatcher.h"
 #include "../../world/level/tile/entity/TileEntity.h"
 #include "../particle/BreakingItemParticle.h"
 
 #include "../../client/player/LocalPlayer.h"
-
-#ifdef __3DS__
-#include "../../platform/ctr_caps.h"
-#endif
 
 #ifdef GFX_SMALLER_CHUNKS
 /* static */ const int LevelRenderer::CHUNK_SIZE = 8;
@@ -357,7 +353,6 @@ int LevelRenderer::render( Mob* player, int layer, float alpha )
 	float yd = player->y - yOld;
 	float zd = player->z - zOld;
 	if (xd * xd + yd * yd + zd * zd > 4 * 4) {
-		FP_SCOPE("30.resortChunks");
 		xOld = player->x;
 		yOld = player->y;
 		zOld = player->z;
@@ -1058,7 +1053,7 @@ void LevelRenderer::renderEntities(Vec3 cam, Culler* culler, float a) {
 	// Если в level нет ни одной entity и ни одного tile entity — нечего готовить
 	// (prepare настраивает шрифт/матрицы/текстуры для последующего рендера).
 	// На O3DS экономит несколько мс в кадре когда мобов нет рядом.
-	if (isOld3ds() && level->getAllEntities().empty() && level->tileEntities.empty()) {
+	if (!IsNew3DS() && level->getAllEntities().empty() && level->tileEntities.empty()) {
 		return;
 	}
 #endif
@@ -1098,7 +1093,7 @@ void LevelRenderer::renderEntities(Vec3 cam, Culler* culler, float a) {
 		// Old 3DS: жёсткий cutoff по радиусу. Frustum-culler пропускает энтити
 		// на горизонте (фрустум 32m), а каждая мобка стоит на CPU как
 		// прорисовка модели + лимбов + теней. Срезаем дальше 24m^2 = 576.
-		const float entCutoffSqr = isOld3ds() ? (24.0f * 24.0f) : 1e30f;
+		const float entCutoffSqr = !IsNew3DS() ? (24.0f * 24.0f) : 1e30f;
 		const float camX = (float)cam.x;
 		const float camY = (float)cam.y;
 		const float camZ = (float)cam.z;
@@ -1147,7 +1142,7 @@ void LevelRenderer::renderEntities(Vec3 cam, Culler* culler, float a) {
 #ifdef __3DS__
     // Tile entity cutoff на O3DS: рисуем только в пределах 24m (как и обычные
     // энтити). Печки/сундуки далеко в чанке всё равно почти не видны.
-    if (isOld3ds()) {
+    if (!IsNew3DS()) {
         const float cx = (float)cam.x;
         const float cy = (float)cam.y;
         const float cz = (float)cam.z;

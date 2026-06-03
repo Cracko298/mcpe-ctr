@@ -28,7 +28,7 @@
 #include <cstdio>
 
 #ifdef __3DS__
-#include "../../platform/ctr_caps.h"
+#include "../../util/CheckNew3DS.h"
 #endif
 
 float Gui::InvGuiScale = 1.0f / 3.0f;
@@ -56,7 +56,8 @@ Gui::Gui(Minecraft* minecraft)
 	MAX_MESSAGE_WIDTH(240),
 	itemNameOverlayTime(2)
 #ifdef __3DS__
-	, _minimapTexture(0),
+	, _bottomScreenLayout(false),
+	_minimapTexture(0),
 	_minimapChunkX(INT_MAX),
 	_minimapChunkZ(INT_MAX),
 	_minimapReady(false)
@@ -90,7 +91,35 @@ void Gui::render(float a, bool mouseFree, int xMouse, int yMouse) {
 	renderInGameHud(a, true, true);
 }
 
+int Gui::getGuiWidth() const {
 #ifdef __3DS__
+	return _bottomScreenLayout ? getBottomGuiWidth() : (int)(minecraft->width * InvGuiScale);
+#else
+	return (int)(minecraft->width * InvGuiScale);
+#endif
+}
+
+int Gui::getGuiHeight() const {
+#ifdef __3DS__
+	return _bottomScreenLayout ? getBottomGuiHeight() : (int)(minecraft->height * InvGuiScale);
+#else
+	return (int)(minecraft->height * InvGuiScale);
+#endif
+}
+
+#ifdef __3DS__
+int Gui::getBottomGuiWidth() const {
+	return (int)(320 * InvGuiScale);
+}
+
+int Gui::getBottomGuiHeight() const {
+	return (int)(240 * InvGuiScale);
+}
+
+void Gui::setBottomScreenLayout(bool enabled) {
+	_bottomScreenLayout = enabled;
+}
+
 void Gui::renderTopHud(float a) {
 	renderInGameHud(a, true, false);
 }
@@ -105,8 +134,8 @@ void Gui::renderBottomHotbar(float a) {
 void Gui::renderBottomDirt(float a) {
 	(void)a;
 
-	const int screenWidth  = (int)(minecraft->width  * InvGuiScale);
-	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+	const int screenWidth  = getGuiWidth();
+	const int screenHeight = getGuiHeight();
 
 	glDisable2(GL_FOG);
 	glDisable2(GL_ALPHA_TEST);
@@ -147,8 +176,8 @@ void Gui::renderHotbarOnTop(float a) {
 	if (!minecraft->level || !minecraft->player)
 		return;
 
-	const int screenWidth  = (int)(minecraft->width  * InvGuiScale);
-	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+	const int screenWidth  = getGuiWidth();
+	const int screenHeight = getGuiHeight();
 
 	const int defaultYSlot = getHotbarYSlot(screenHeight);   // 6 на 3DS
 	const int wantYSlot    = screenHeight - 22;              // y нижней кромки
@@ -293,8 +322,8 @@ void Gui::renderWorldMinimap(float a) {
 	(void)a;
 	if (!minecraft->level || !minecraft->player) return;
 
-	const int screenWidth  = (int)(minecraft->width  * InvGuiScale);
-	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+	const int screenWidth  = getGuiWidth();
+	const int screenHeight = getGuiHeight();
 
 	const int mapInner = kMinimapInnerSize;
 	const int mapOuter = kMinimapSize;
@@ -445,8 +474,8 @@ void Gui::renderWorldMinimap(float a) {
 		// На O3DS отказываемся от тени у координат — экономит ровно половину
 		// draw call'ов на текст HUD. Цвет компенсируем: вместо белого с
 		// чёрной тенью используем жёлтый (контраст к dirt-фону bottom-screen).
-		const bool useShadow = !isOld3ds();
-		const int  coordColor = isOld3ds() ? 0xffffe060 : 0xffffffff;
+		const bool useShadow = IsNew3DS();
+		const int  coordColor = !IsNew3DS() ? 0xffffe060 : 0xffffffff;
 #else
 		const bool useShadow = true;
 		const int  coordColor = 0xffffffff;
@@ -477,8 +506,8 @@ void Gui::renderWorldMinimap(float a) {
 // Шейп: octagon-like (прямоугольник + горизонтальная полоса = крест без углов)
 // → выглядит как rect со скруглёнными углами 2px.
 void Gui::getControlButtonRect(int which, int& x0, int& y0, int& x1, int& y1) {
-	const int screenWidth  = (int)(minecraft->width  * InvGuiScale);
-	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+	const int screenWidth  = getBottomGuiWidth();
+	const int screenHeight = getBottomGuiHeight();
 	const int mapX0 = screenWidth - kMinimapSize - 4;
 	const int gap = 4;
 	const int px0 = 4;
@@ -512,8 +541,8 @@ void Gui::renderCamZoneHint(float a) {
 	(void)a;
 	if (!minecraft->level || !minecraft->player) return;
 
-	const int screenWidth  = (int)(minecraft->width  * InvGuiScale);
-	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+	const int screenWidth  = getGuiWidth();
+	const int screenHeight = getGuiHeight();
 
 	const int mapX0 = screenWidth - kMinimapSize - 4;
 	const int gap = 4;
@@ -698,8 +727,8 @@ void Gui::renderInGameHud(float a, bool renderStatus, bool renderHotbar) {
 	Font* font = minecraft->font;
 
 	const bool isTouchInterface = minecraft->useTouchscreen();
-	const int screenWidth = (int)(minecraft->width * InvGuiScale);
-	const int screenHeight = (int)(minecraft->height * InvGuiScale);
+	const int screenWidth = getGuiWidth();
+	const int screenHeight = getGuiHeight();
 	blitOffset = -90;
 
 	// H: 4
@@ -804,8 +833,13 @@ int Gui::getHotbarYSlot(int screenHeight) const {
 }
 
 int Gui::getSlotIdAt(int x, int y) {
-	int screenWidth = (int)(minecraft->width * InvGuiScale);
-	int screenHeight = (int)(minecraft->height * InvGuiScale);
+#ifdef __3DS__
+	int screenWidth = getBottomGuiWidth();
+	int screenHeight = getBottomGuiHeight();
+#else
+	int screenWidth = getGuiWidth();
+	int screenHeight = getGuiHeight();
+#endif
 	x = (int)(x * InvGuiScale);
 	y = (int)(y * InvGuiScale);
 
@@ -836,24 +870,32 @@ void Gui::flashSlot(int slotId) {
 }
 
 void Gui::getSlotPos(int slot, int& posX, int& posY) {
-	int screenWidth = (int)(minecraft->width * InvGuiScale);
-	int screenHeight = (int)(minecraft->height * InvGuiScale);
+	int screenWidth = getGuiWidth();
+	int screenHeight = getGuiHeight();
 	posX = screenWidth / 2 - getNumSlots() * 10 + slot * 20, 
 	posY = getHotbarYSlot(screenHeight) - 3;
 }
 
 RectangleArea Gui::getRectangleArea(int extendSide) {
 	const int Spacing = 3;
-	const float pCenterX   = 2.0f + (float)(minecraft->width / 2);
+#ifdef __3DS__
+	const int screenWidth = getBottomGuiWidth();
+	const int screenHeight = getBottomGuiHeight();
+#else
+	const int screenWidth = getGuiWidth();
+	const int screenHeight = getGuiHeight();
+#endif
+	const float pixelWidth = (float)(screenWidth * Gui::GuiScale);
+	const float pCenterX   = 2.0f + pixelWidth * 0.5f;
 	const float pHalfWidth = (1.0f + (getNumSlots() * 10 + Spacing)) * Gui::GuiScale;
 	const float pHeight    = (22 + Spacing) * Gui::GuiScale;
-	const float pTop = getHotbarYSlot((int)(minecraft->height * InvGuiScale)) * Gui::GuiScale;
+	const float pTop = getHotbarYSlot(screenHeight) * Gui::GuiScale;
 	const float pBottom = pTop + pHeight;
 
 	if (extendSide < 0)
 		return RectangleArea(0, pTop, pCenterX+pHalfWidth+2, pBottom);
 	if (extendSide > 0)
-		return RectangleArea(pCenterX-pHalfWidth, pTop, (float)minecraft->width, pBottom);
+		return RectangleArea(pCenterX-pHalfWidth, pTop, pixelWidth, pBottom);
 	
 	return RectangleArea(pCenterX-pHalfWidth, pTop, pCenterX+pHalfWidth+2, pBottom);
 }
@@ -1175,7 +1217,8 @@ void Gui::postError( int errCode )
 void Gui::setScissorRect( const IntRectangle& bbox )
 {
 	GLuint x = (GLuint)(ScissorScaleX * bbox.x);
-	GLuint y = minecraft->height - (GLuint)(ScissorScaleY * (bbox.y + bbox.h));
+	GLuint targetHeight = (GLuint)(getGuiHeight() * Gui::GuiScale);
+	GLuint y = targetHeight - (GLuint)(ScissorScaleY * (bbox.y + bbox.h));
 	GLuint w = (GLuint)(ScissorScaleX * bbox.w);
 	GLuint h = (GLuint)(ScissorScaleY * bbox.h);
 	glScissor(x, y, w, h);

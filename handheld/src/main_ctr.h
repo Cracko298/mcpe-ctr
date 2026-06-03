@@ -27,8 +27,7 @@
 #include "platform/input/Multitouch.h"
 #include "platform/input/Keyboard.h"
 #include "platform/input/Controller.h"
-#include "platform/ctr_caps.h"
-#include "util/FrameProf.h"
+#include "util/CheckNew3DS.h"
 
 static bool _app_inited = false;
 
@@ -50,8 +49,7 @@ static void exitLog(const char* msg) {
 
 static void initGraphics(App* app, AppContext* state) {
     osSetSpeedupEnable(true);
-    ctr_caps_init();
-    printf("[CAPS] Console: %s\n", isOld3ds() ? "Old 3DS (aggressive cuts ON)" : "New 3DS");
+    printf("[CAPS] Console: %s\n", !IsNew3DS() ? "Old 3DS (aggressive cuts ON)" : "New 3DS");
 
     gfxInitDefault();
     nova_init();
@@ -104,8 +102,8 @@ void handleTouch() {
     bool xyba = ctrXybaInGame();
 
     if (isTouching) {
-        int16_t x = (touch.px * NOVA_SCREEN_W) / NOVA_SCREEN_BOTTOM_H;
-        int16_t y = (touch.py * NOVA_SCREEN_H) / NOVA_SCREEN_BOTTOM_W;
+        int16_t x = touch.px;
+        int16_t y = touch.py;
 
         if (!wasTouching) {
             Mouse::feed(MouseAction::ACTION_LEFT, MouseAction::DATA_DOWN, x, y);
@@ -248,10 +246,7 @@ int main(int argc, char** argv) {
     const u64 kSysTicksPerSec = SYSCLOCK_ARM11; // 268,123,480 на 3DS
 
     while (aptMainLoop()) {
-        //FrameProf::beginFrame();
-
         {
-            FrameProf::Scoped _s_input("00.input");
             hidScanInput();
 
             if ((hidKeysHeld() & KEY_START) && (hidKeysHeld() & KEY_SELECT)) {
@@ -270,12 +265,10 @@ int main(int argc, char** argv) {
         }
 
         {
-            FrameProf::Scoped _s_update("01.app_update");
             app->update();
         }
 
         {
-            FrameProf::Scoped _s_swap("02.swap");
             novaSwapBuffers();
         }
 
@@ -289,15 +282,12 @@ int main(int argc, char** argv) {
         nextFrameTick += kTargetFrameTicks;
         u64 now = svcGetSystemTick();
         if (now < nextFrameTick) {
-            FrameProf::Scoped _s_sleep("03.frame_sleep");
             u64 remainingTicks = nextFrameTick - now;
             s64 remainingNs = (s64)((remainingTicks * 1000000000ULL) / kSysTicksPerSec);
             if (remainingNs > 0) svcSleepThread(remainingNs);
         } else {
             nextFrameTick = now;
         }
-
-        //FrameProf::endFrame();
     }
 
     exitLog("[EXIT] main loop ended (aptMainLoop returned false or break)");

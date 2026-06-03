@@ -25,6 +25,7 @@ public:
 	virtual void tick();
 	void stepLeft();
 	void stepRight();
+	void resizeAndCenter(int width, int height);
 
 	void commit();
 protected:

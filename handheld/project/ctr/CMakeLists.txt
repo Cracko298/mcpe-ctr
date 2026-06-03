@@ -248,7 +248,7 @@ add_executable(${PROJECT_NAME}
         ${HANDHELD}/util/StringUtils.cpp
         ${HANDHELD}/util/Mth.cpp
         ${HANDHELD}/util/PerfRenderer.cpp
-        ${HANDHELD}/util/FrameProf.cpp
+        ${HANDHELD}/util/CheckNew3DS.cpp
         ${HANDHELD}/server/ServerPlayer.cpp
         ${HANDHELD}/server/CreatorLevel.cpp
         ${HANDHELD}/server/ArgumentsSettings.cpp
@@ -386,12 +386,6 @@ target_link_directories(${PROJECT_NAME} PRIVATE
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
         NovaGL
-        SDL
-        SDL_mixer
-        mad
-        vorbisidec
-        ogg
-        mikmod
         citro3d
         citro2d
         png
@@ -402,6 +396,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
 target_link_options(${PROJECT_NAME} PRIVATE -Wl,--allow-multiple-definition)
 # === ROMFS GENERATION ===
 set(ROMFS_STAGING_DIR "${CMAKE_CURRENT_BINARY_DIR}/romfs_staging")
+file(MAKE_DIRECTORY ${ROMFS_STAGING_DIR})
 
 add_custom_target(prepare_romfs ALL
         COMMAND ${CMAKE_COMMAND} -E make_directory ${ROMFS_STAGING_DIR}
@@ -428,7 +423,7 @@ set(APP_VERSION_MICRO "1")
 set(APP_RSF "${CMAKE_SOURCE_DIR}/3ds/template.rsf")
 set(APP_ICON "${CMAKE_SOURCE_DIR}/3ds/icon.png")
 set(BANNER_IMAGE "${CMAKE_SOURCE_DIR}/3ds/banner.png")
-set(BANNER_AUDIO "${CMAKE_SOURCE_DIR}/3ds/audio_silent.wav")
+set(BANNER_AUDIO "${CMAKE_SOURCE_DIR}/3ds/banner_audio.wav")
 
 find_program(BANNERTOOL NAMES bannertool HINTS "$ENV{DEVKITPRO}/tools/bin")
 find_program(MAKEROM NAMES makerom HINTS "$ENV{DEVKITPRO}/tools/bin")
@@ -469,6 +464,7 @@ if(BANNERTOOL AND MAKEROM)
             -DAPP_TITLE="${APP_TITLE}"
             -DAPP_PRODUCT_CODE="${APP_PRODUCT_CODE}"
             -DAPP_UNIQUE_ID="${APP_UNIQUE_ID}"
+            -DAPP_ROMFS="${ROMFS_STAGING_DIR}"
             -DAPP_SYSTEM_MODE="80MB"
             -DAPP_SYSTEM_MODE_EXT="124MB"
             -major "${APP_VERSION_MAJOR}"

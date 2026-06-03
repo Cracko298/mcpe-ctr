@@ -185,6 +185,20 @@ void TouchWorldSelectionList::commit() {
 	}
 }
 
+void TouchWorldSelectionList::resizeAndCenter(int newWidth, int newHeight) {
+	width = newWidth;
+	height = newHeight;
+	x0 = 0;
+	x1 = newWidth;
+	y0 = 24;
+	y1 = newHeight - 32;
+	_height = newHeight;
+
+	if (selectedItem >= 0)
+		xoo = xo = ((float)(selectedItem * itemWidth) + ((float)(itemWidth - width)) * 0.5f);
+	capXPosition();
+}
+
 static float quadraticInOut(float t, float dur, float start, float stop) {
 	const float delta = stop - start;
 	const float T = (t / dur) * 2.0f;
@@ -334,6 +348,10 @@ void SelectWorldScreen::init()
 
 void SelectWorldScreen::setupPositions() {
 	//#ifdef ANDROID
+	const int sideButtonWidth = Mth::Min(54, width / 3);
+	bBack.width = sideButtonWidth;
+	bCreate.width = sideButtonWidth;
+
 	bCreate.y =	0;
 	bBack.y   = 0;
 	bHeader.y = 0;
@@ -346,6 +364,9 @@ void SelectWorldScreen::setupPositions() {
 	bHeader.x   = bBack.width;
 	bHeader.width   = width - (bBack.width + bCreate.width);
 	bHeader.height   = bCreate.height;
+
+	if (worldsList)
+		worldsList->resizeAndCenter(width, height);
 }
 
 void SelectWorldScreen::buttonClicked(Button* button)
