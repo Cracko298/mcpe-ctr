@@ -245,6 +245,7 @@ add_executable(${PROJECT_NAME}
         ${HANDHELD}/NinecraftApp.cpp
         ${HANDHELD}/util/DataIO.cpp
         ${HANDHELD}/util/PerfTimer.cpp
+        ${HANDHELD}/util/CtrFrameTiming.cpp
         ${HANDHELD}/util/StringUtils.cpp
         ${HANDHELD}/util/Mth.cpp
         ${HANDHELD}/util/PerfRenderer.cpp
@@ -413,7 +414,7 @@ ctr_create_3dsx(${PROJECT_NAME}
 
 set(APP_TITLE "Minecraft PE")
 set(APP_DESCRIPTION "Minecraft Pocket Edition 0.6.1")
-set(APP_AUTHOR "efimandreev0")
+set(APP_AUTHOR "Saku")
 set(APP_PRODUCT_CODE "CTR-P-MCPE")
 set(APP_UNIQUE_ID "0xEFAD0")
 set(APP_VERSION_MAJOR "0")

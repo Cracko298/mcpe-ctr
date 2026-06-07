@@ -1,4 +1,4 @@
-﻿#ifndef APPPLATFORM_3DS_H__
+#ifndef APPPLATFORM_3DS_H__
 #define APPPLATFORM_3DS_H__
 
 #include <fstream>
@@ -123,7 +123,7 @@ public:
 		size_t rd = fread(blob.data, 1, blob.size, fd);
 		fclose(fd);
 
-		if (rd != blob.size) {
+		if (rd != (size_t)blob.size) {
 			LOGI("wrong size read: %s\n", fullAssetPath.c_str());
 			return BinaryBlob(); // В идеале тут бы delete[] blob.data, но оставим как было
 		}

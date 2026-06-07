@@ -1,4 +1,4 @@
-﻿//
+//
 // Created by efimandreev0 on 10.03.2026.
 //
 
@@ -23,6 +23,7 @@
 #include "AppPlatform_ctr.h"
 #include "client/renderer/GameRenderer.h"
 #include "platform/log.h"
+#include "util/CtrFrameTiming.h"
 #include "platform/input/Mouse.h"
 #include "platform/input/Multitouch.h"
 #include "platform/input/Keyboard.h"
@@ -70,7 +71,7 @@ static void initGraphics(App* app, AppContext* state) {
     app->setSize(NOVA_SCREEN_W, NOVA_SCREEN_H);
 }
 
-static void deinitGraphics() {
+[[maybe_unused]] static void deinitGraphics() {
     exitLog("[EXIT] nova_fini: begin");
     nova_fini(); // Очистка транслятора
     //exitLog("[EXIT] nova_fini: done");
@@ -241,11 +242,13 @@ int main(int argc, char** argv) {
 
     int frameCounter = 0;
 
-    const u64 kTargetFrameNs = 1000000000ULL / 30ULL; // 33,333,333 ns
     u64 nextFrameTick = svcGetSystemTick();
     const u64 kSysTicksPerSec = SYSCLOCK_ARM11; // 268,123,480 на 3DS
 
+    CtrFrameTiming::init();
+
     while (aptMainLoop()) {
+        CtrFrameTiming::markStart(CtrFrameTiming::INPUT);
         {
             hidScanInput();
 
@@ -257,6 +260,7 @@ int main(int argc, char** argv) {
             handleTouch();
             handleController();
         }
+        CtrFrameTiming::markEnd(CtrFrameTiming::INPUT);
 
         {
             float slider = osGet3DSliderState();
@@ -268,20 +272,38 @@ int main(int argc, char** argv) {
             app->update();
         }
 
-        {
-            novaSwapBuffers();
+        // 1. Fetch options if available
+        bool limitFramerate = false;
+        Minecraft* mc = (Minecraft*)app;
+        if (mc) {
+            limitFramerate = mc->options.limitFramerate;
         }
+
+        // 2. Determine target FPS
+        u64 targetFps = limitFramerate ? 30ULL : 60ULL;
+        u64 targetFrameNs = 1000000000ULL / targetFps;
+
+        // 3. VSync / Buffer Swap
+        CtrFrameTiming::markStart(CtrFrameTiming::PRESENT);
+        novaSwapBuffers();
+        CtrFrameTiming::markEnd(CtrFrameTiming::PRESENT);
+
+        CtrFrameTiming::endFrame();
 
         if (frameCounter % 60 == 0) {
             printMemoryStats();
         }
         frameCounter++;
 
-        // ticks = ns * (TicksPerSec / 1e9).
-        const u64 kTargetFrameTicks = (kTargetFrameNs * kSysTicksPerSec) / 1000000000ULL;
+        // 4. Tick math
+        const u64 kTargetFrameTicks = (targetFrameNs * kSysTicksPerSec) / 1000000000ULL;
         nextFrameTick += kTargetFrameTicks;
         u64 now = svcGetSystemTick();
-        if (now < nextFrameTick) {
+        
+        // If we missed the tick window by a lot (e.g. lag spike), reset it
+        if (now > nextFrameTick + kTargetFrameTicks * 2) {
+            nextFrameTick = now;
+        } else if (now < nextFrameTick) {
             u64 remainingTicks = nextFrameTick - now;
             s64 remainingNs = (s64)((remainingTicks * 1000000000ULL) / kSysTicksPerSec);
             if (remainingNs > 0) svcSleepThread(remainingNs);

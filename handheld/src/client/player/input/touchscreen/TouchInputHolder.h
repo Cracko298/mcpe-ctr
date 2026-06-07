@@ -139,6 +139,19 @@ public:
 		}
 	}
 
+	void addExcludeArea(RectangleArea* area) {
+		_area.exclude(area);
+		_model.clear();
+		_model.addArea(AREA_TURN, &_area);
+	}
+
+	void setIncludeArea(RectangleArea* area) {
+		_area.clear();
+		_area.include(area);
+		_model.clear();
+		_model.addArea(AREA_TURN, &_area);
+	}
+
 	float calcNewAlpha(float current, float wanted) {
 		if (wanted > current)
 			return Mth::clamp(current + 0.02f, 0.0f, wanted);

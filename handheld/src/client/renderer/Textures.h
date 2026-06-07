@@ -30,7 +30,7 @@ public:
 	void addDynamicTexture(DynamicTexture* dynamicTexture);
 
 	__inline void bind(TextureId id) {
-		if (id != Textures::InvalidId && lastBoundTexture != id) {
+		if (id != Textures::InvalidId && (TextureId)lastBoundTexture != id) {
 			glBindTexture2(GL_TEXTURE_2D, id);
 			lastBoundTexture = id;
 			++textureChanges;

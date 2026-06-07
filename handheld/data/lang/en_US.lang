@@ -186,13 +186,14 @@ options.hidegui=Hide GUI
 options.servervisible=Server Visible
 options.lefthanded=Left Handed
 options.usetouchscreen=Use Touchscreen
-options.usetouchpad=Use Touchpad
+options.usetouchpad=Split Controls
 options.destroyvibration=Vibration Feedback
 options.renderDebug=Debug Rendering
-options.controlScheme=Controls
+options.controlScheme=XYBA controls Camera
 options.scheme.camzone=Cam Zone
 options.scheme.xyba=XYBA Camera
 options.autoJump=Auto Jump
+options.performanceOverlay=Performance Overlay
 
 options.group.video=Video Settings
 options.group.game=Game Settings

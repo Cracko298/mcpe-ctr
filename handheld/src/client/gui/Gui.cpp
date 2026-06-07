@@ -26,9 +26,11 @@
 #include "../../world/PosTranslator.h"
 #include <climits>
 #include <cstdio>
+#include "../../platform/time.h"
 
 #ifdef __3DS__
 #include "../../util/CheckNew3DS.h"
+#include <3ds.h>
 #endif
 
 float Gui::InvGuiScale = 1.0f / 3.0f;
@@ -251,10 +253,8 @@ void Gui::buildWorldMinimap() {
 	Level* level = minecraft->level;
 	const int playerBlockX = Mth::floor(minecraft->player->x);
 	const int playerBlockZ = Mth::floor(minecraft->player->z);
-	const int playerChunkX = minimap_floor_chunk(playerBlockX);
-	const int playerChunkZ = minimap_floor_chunk(playerBlockZ);
-	const int startBlockX = (playerChunkX - 1) * 16;
-	const int startBlockZ = (playerChunkZ - 1) * 16;
+	const int startBlockX = playerBlockX - (kMinimapTextureSize / 2);
+	const int startBlockZ = playerBlockZ - (kMinimapTextureSize / 2);
 
 	int cachedCx = INT_MAX;
 	int cachedCz = INT_MAX;
@@ -263,8 +263,8 @@ void Gui::buildWorldMinimap() {
 	for (int i = 0; i < kMinimapTextureSize * kMinimapTextureSize; i++)
 		_minimapPixels[i] = 0xff181820;
 
-	for (int my = 0; my < kMinimapInnerSize; my++) {
-		for (int mx = 0; mx < kMinimapInnerSize; mx++) {
+	for (int my = 0; my < kMinimapTextureSize; my++) {
+		for (int mx = 0; mx < kMinimapTextureSize; mx++) {
 			const int wx = startBlockX + mx;
 			const int wz = startBlockZ + my;
 			const int cx = minimap_floor_chunk(wx);
@@ -313,8 +313,8 @@ void Gui::buildWorldMinimap() {
 		glTexSubImage2D2(GL_TEXTURE_2D, 0, 0, 0, kMinimapTextureSize, kMinimapTextureSize, GL_RGBA, GL_UNSIGNED_BYTE, _minimapPixels);
 	}
 
-	_minimapChunkX = playerChunkX;
-	_minimapChunkZ = playerChunkZ;
+	_minimapChunkX = startBlockX;
+	_minimapChunkZ = startBlockZ;
 	_minimapReady = true;
 }
 
@@ -346,16 +346,18 @@ void Gui::renderWorldMinimap(float a) {
 	const int playerBlockX = Mth::floor(minecraft->player->x);
 	const int playerBlockY = Mth::floor(minecraft->player->y);
 	const int playerBlockZ = Mth::floor(minecraft->player->z);
-	const int playerChunkX = minimap_floor_chunk(playerBlockX);
-	const int playerChunkZ = minimap_floor_chunk(playerBlockZ);
-	const int startBlockX = (playerChunkX - 1) * 16;
-	const int startBlockZ = (playerChunkZ - 1) * 16;
+	
+	const float viewStartX = minecraft->player->x - (mapInner / 2.0f);
+	const float viewStartZ = minecraft->player->z - (mapInner / 2.0f);
 
-	if (!_minimapReady || _minimapChunkX != playerChunkX || _minimapChunkZ != playerChunkZ)
+	if (!_minimapReady || viewStartX < _minimapChunkX || viewStartZ < _minimapChunkZ ||
+	    viewStartX + mapInner > _minimapChunkX + kMinimapTextureSize ||
+	    viewStartZ + mapInner > _minimapChunkZ + kMinimapTextureSize) {
 		buildWorldMinimap();
+	}
 
-	const float pxF = Mth::clamp(minecraft->player->x - (float)startBlockX, 0.0f, (float)(mapInner - 1));
-	const float pzF = Mth::clamp(minecraft->player->z - (float)startBlockZ, 0.0f, (float)(mapInner - 1));
+	const float pxF = mapInner / 2.0f;
+	const float pzF = mapInner / 2.0f;
 	const float pix = (float)ix0 + pxF;
 	const float piy = (float)iy0 + pzF;
 	const bool haveTex = (_minimapReady && _minimapTexture != 0);
@@ -366,11 +368,6 @@ void Gui::renderWorldMinimap(float a) {
 		infoY1 = y0 + mapOuter - 2;
 	const bool hasInfoPanel = (infoY1 - infoY0 >= 20);
 
-	// Каждый t.begin()/t.draw() — это отдельный glBufferData+glDrawArrays, на
-	// 3DS дорогой. Поэтому всю неотекстуренную геометрию мини-карты сливаем в
-	// два батча: «под картой» и «поверх карты». Цвет в Tesselator — атрибут
-	// вершины, так что разные цвета в одном батче не мешают.
-
 	// --- Батч 1: фон-плашки под картой ---
 	t.begin();
 	if (panelY0 < y0 - 2) {
@@ -379,67 +376,49 @@ void Gui::renderWorldMinimap(float a) {
 		t.vertex((float)(x0 + mapOuter), (float)(y0 - 2), 0);
 		t.vertex((float)(x0 + mapOuter), (float)panelY0,  0);
 		t.vertex((float)x0,              (float)panelY0,  0);
-		t.colorABGR(0xff606078);
-		t.vertex((float)x0,              (float)(panelY0 + 1), 0);
-		t.vertex((float)(x0 + mapOuter), (float)(panelY0 + 1), 0);
-		t.vertex((float)(x0 + mapOuter), (float)panelY0,       0);
-		t.vertex((float)x0,              (float)panelY0,       0);
 	}
-	t.colorABGR(0xff000000);
+	t.colorABGR(0xc0000000);
 	t.vertex((float)x0,              (float)(y0 + mapOuter), 0);
 	t.vertex((float)(x0 + mapOuter), (float)(y0 + mapOuter), 0);
-	t.vertex((float)(x0 + mapOuter), (float)y0,             0);
-	t.vertex((float)x0,              (float)y0,             0);
-	if (!haveTex) {
-		t.colorABGR(0xff181820);
-		t.vertex((float)ix0,              (float)(iy0 + mapInner), 0);
-		t.vertex((float)(ix0 + mapInner), (float)(iy0 + mapInner), 0);
-		t.vertex((float)(ix0 + mapInner), (float)iy0,              0);
-		t.vertex((float)ix0,              (float)iy0,              0);
-	}
+	t.vertex((float)(x0 + mapOuter), (float)y0,              0);
+	t.vertex((float)x0,              (float)y0,              0);
 	t.draw();
 
 	// --- Карта (текстура) — отдельный батч, нужен GL_TEXTURE_2D ---
 	if (haveTex) {
-		const float uv = (float)kMinimapInnerSize / (float)kMinimapTextureSize;
+		const float u0 = (viewStartX - _minimapChunkX) / (float)kMinimapTextureSize;
+		const float v0 = (viewStartZ - _minimapChunkZ) / (float)kMinimapTextureSize;
+		const float uRange = (float)mapInner / (float)kMinimapTextureSize;
+		
 		glEnable2(GL_TEXTURE_2D);
 		glColor4f2(1, 1, 1, 1);
 		glBindTexture2(GL_TEXTURE_2D, (GLuint)_minimapTexture);
 		t.begin();
-		t.vertexUV((float)ix0,              (float)(iy0 + mapInner), 0, 0.0f, uv);
-		t.vertexUV((float)(ix0 + mapInner), (float)(iy0 + mapInner), 0, uv,   uv);
-		t.vertexUV((float)(ix0 + mapInner), (float)iy0,              0, uv,   0.0f);
-		t.vertexUV((float)ix0,              (float)iy0,              0, 0.0f, 0.0f);
+		t.vertexUV((float)ix0,            (float)(iy0 + mapInner), 0, u0,          v0 + uRange);
+		t.vertexUV((float)(ix0 + mapInner), (float)(iy0 + mapInner), 0, u0 + uRange, v0 + uRange);
+		t.vertexUV((float)(ix0 + mapInner), (float)iy0,            0, u0 + uRange, v0);
+		t.vertexUV((float)ix0,            (float)iy0,            0, u0,          v0);
 		t.draw();
 		glDisable2(GL_TEXTURE_2D);
 	}
 
-	// --- Батч 2: всё поверх карты — сетка, маркер игрока, плашка координат ---
+	// --- Батч 2: всё поверх карты — маркер игрока, плашка координат ---
 	t.begin();
-	t.colorABGR(0x90000000);
-	for (int grid = 16; grid <= 32; grid += 16) {
-		const float gx = (float)(ix0 + grid);
-		const float gy = (float)(iy0 + grid);
-		t.vertex(gx,        (float)(iy0 + mapInner), 0);
-		t.vertex(gx + 1.0f, (float)(iy0 + mapInner), 0);
-		t.vertex(gx + 1.0f, (float)iy0,              0);
-		t.vertex(gx,        (float)iy0,              0);
-		t.vertex((float)ix0,              gy + 1.0f, 0);
-		t.vertex((float)(ix0 + mapInner), gy + 1.0f, 0);
-		t.vertex((float)(ix0 + mapInner), gy,        0);
-		t.vertex((float)ix0,              gy,        0);
-	}
-	// Маркер игрока — зелёная точка с тёмной обводкой для контраста.
-	t.colorABGR(0xff000000);
-	t.vertex(pix - 3.0f, piy + 4.0f, 0);
-	t.vertex(pix + 4.0f, piy + 4.0f, 0);
-	t.vertex(pix + 4.0f, piy - 3.0f, 0);
-	t.vertex(pix - 3.0f, piy - 3.0f, 0);
-	t.colorABGR(0xff30d030);
-	t.vertex(pix - 2.0f, piy + 3.0f, 0);
-	t.vertex(pix + 3.0f, piy + 3.0f, 0);
-	t.vertex(pix + 3.0f, piy - 2.0f, 0);
-	t.vertex(pix - 2.0f, piy - 2.0f, 0);
+
+	// Player marker — small white square (3x3 pixels) with black outline
+	const float markerSize = 1.5f;
+	const float outlineSize = 2.5f;
+	t.colorABGR(0xff000000); // black
+	t.vertex(pix - outlineSize, piy + outlineSize, 0);
+	t.vertex(pix + outlineSize, piy + outlineSize, 0);
+	t.vertex(pix + outlineSize, piy - outlineSize, 0);
+	t.vertex(pix - outlineSize, piy - outlineSize, 0);
+
+	t.colorABGR(0xffffffff); // white
+	t.vertex(pix - markerSize, piy + markerSize, 0);
+	t.vertex(pix + markerSize, piy + markerSize, 0);
+	t.vertex(pix + markerSize, piy - markerSize, 0);
+	t.vertex(pix - markerSize, piy - markerSize, 0);
 	if (hasInfoPanel) {
 		t.colorABGR(0xd0202028);
 		t.vertex((float)x0,              (float)infoY1, 0);
@@ -494,7 +473,7 @@ void Gui::renderWorldMinimap(float a) {
 		else           f->draw(std::string(buf), textX, textY, coordColor);
 		textY += lineH;
 		if (textY + lineH <= infoY1) {
-			snprintf(buf, sizeof(buf), "C:%d,%d", playerChunkX, playerChunkZ);
+			snprintf(buf, sizeof(buf), "C:%d,%d", playerBlockX >> 4, playerBlockZ >> 4);
 			if (useShadow) f->drawShadow(std::string(buf), textX, textY, 0xffaaccff);
 			else           f->draw(std::string(buf), textX, textY, 0xffaaccff);
 		}
@@ -742,31 +721,57 @@ void Gui::renderInGameHud(float a, bool renderStatus, bool renderHotbar) {
 	// Инвертирующий блендинг (ONE_MINUS_DST_COLOR) делает крест видимым на
 	// любом фоне — и на небе, и на блоках.
 	if (renderStatus) {
-		Tesselator& tc = Tesselator::instance;
-		const float cx = screenWidth  * 0.5f;
-		const float cy = screenHeight * 0.5f;
-		glDisable2(GL_TEXTURE_2D);
-		glDisable2(GL_ALPHA_TEST);
-		glEnable2(GL_BLEND);
-		glBlendFunc2(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
-		tc.begin();
-		tc.colorABGR(0xffffffff);
-		tc.vertex(cx - 5.0f, cy + 1.0f, 0);
-		tc.vertex(cx + 5.0f, cy + 1.0f, 0);
-		tc.vertex(cx + 5.0f, cy,        0);
-		tc.vertex(cx - 5.0f, cy,        0);
-		tc.vertex(cx,        cy + 5.0f, 0);
-		tc.vertex(cx + 1.0f, cy + 5.0f, 0);
-		tc.vertex(cx + 1.0f, cy - 5.0f, 0);
-		tc.vertex(cx,        cy - 5.0f, 0);
-		tc.draw();
-		glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glEnable2(GL_TEXTURE_2D);
-		glEnable2(GL_ALPHA_TEST);
-	}
+		ItemInstance* currentItem = minecraft->player->inventory->getSelected();
+		bool bowEquipped = currentItem != NULL ? currentItem->getItem() == Item::bow : false;
+		bool itemInUse = currentItem != NULL ? currentItem->getItem() == minecraft->player->getUseItem()->getItem() : false;
 
-	if (renderStatus) {
-		renderProgressIndicator(isTouchInterface, screenWidth, screenHeight, a);
+		if (!isTouchInterface || minecraft->options.isJoyTouchArea || (bowEquipped && itemInUse)) {
+			Tesselator& tc = Tesselator::instance;
+			const float cx = Mth::floor(screenWidth  * 0.5f);
+			const float cy = Mth::floor(screenHeight * 0.5f);
+			glDisable2(GL_TEXTURE_2D);
+			glDisable2(GL_ALPHA_TEST);
+			glEnable2(GL_BLEND);
+			glBlendFunc2(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
+			tc.begin();
+			tc.colorABGR(0xffffffff);
+
+			// Center pixel
+			tc.vertex(cx,        cy + 1.0f, 0);
+			tc.vertex(cx + 1.0f, cy + 1.0f, 0);
+			tc.vertex(cx + 1.0f, cy,        0);
+			tc.vertex(cx,        cy,        0);
+			
+			// Left arm
+			tc.vertex(cx - 4.0f, cy + 1.0f, 0);
+			tc.vertex(cx,        cy + 1.0f, 0);
+			tc.vertex(cx,        cy,        0);
+			tc.vertex(cx - 4.0f, cy,        0);
+			
+			// Right arm
+			tc.vertex(cx + 1.0f, cy + 1.0f, 0);
+			tc.vertex(cx + 5.0f, cy + 1.0f, 0);
+			tc.vertex(cx + 5.0f, cy,        0);
+			tc.vertex(cx + 1.0f, cy,        0);
+
+			// Top arm
+			tc.vertex(cx,        cy + 5.0f, 0);
+			tc.vertex(cx + 1.0f, cy + 5.0f, 0);
+			tc.vertex(cx + 1.0f, cy + 1.0f, 0);
+			tc.vertex(cx,        cy + 1.0f, 0);
+			
+			// Bottom arm
+			tc.vertex(cx,        cy,        0);
+			tc.vertex(cx + 1.0f, cy,        0);
+			tc.vertex(cx + 1.0f, cy - 4.0f, 0);
+			tc.vertex(cx,        cy - 4.0f, 0);
+			tc.draw();
+			glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glEnable2(GL_TEXTURE_2D);
+			glEnable2(GL_ALPHA_TEST);
+		}
+
+		renderProgressIndicator(isTouchInterface, screenWidth, screenHeight, a, bowEquipped, itemInUse);
 
 		glColor4f2(1, 1, 1, 1);
 
@@ -815,6 +820,7 @@ void Gui::renderInGameHud(float a, bool renderStatus, bool renderHotbar) {
 		renderDebugInfo();
 #endif
 
+
 //        glPopMatrix2();
 //
 //        glEnable(GL_ALPHA_TEST);
@@ -857,7 +863,31 @@ int Gui::getSlotIdAt(int x, int y) {
 }
 
 bool Gui::isInside(int x, int y) {
-	return getSlotIdAt(x, y) != -1;
+	if (getSlotIdAt(x, y) != -1) return true;
+#ifdef __3DS__
+	const int screenWidth  = getBottomGuiWidth();
+	const int screenHeight = getBottomGuiHeight();
+	const int mapX0 = screenWidth - kMinimapSize - 4;
+	const int px0 = 4;
+	const int px1 = mapX0 - 4;
+	const int py0 = getHotbarYSlot(screenHeight) + 25;
+	const int py1 = screenHeight - 4;
+
+	int gx = (int)(x * InvGuiScale);
+	int gy = (int)(y * InvGuiScale);
+
+	// Consume inputs OUTSIDE the cam zone
+	if (!(gx >= px0 && gx < px1 && gy >= py0 && gy < py1)) {
+		return true; 
+	}
+	
+	// Если включена схема XYBA, центральная часть Cam Zone ДОЛЖНА использоваться
+	// для вращения камеры и ломания блоков. Но кнопки Jump/Inv должны поглощать тач.
+	if (minecraft->options.xybaCamera) {
+		return true; // XYBA mode completely disables block breaking on the touch screen.
+	}
+#endif
+	return false;
 }
 
 int Gui::getNumSlots() {
@@ -1230,17 +1260,8 @@ float Gui::cubeSmoothStep(float percentage, float min, float max) {
 	return (percentage) * (percentage) * (3 - 2 * (percentage));
 }
 
-void Gui::renderProgressIndicator( const bool isTouchInterface, const int screenWidth, const int screenHeight, float a ) {
-	ItemInstance* currentItem = minecraft->player->inventory->getSelected();
-	bool bowEquipped = currentItem != NULL ? currentItem->getItem() == Item::bow : false;
-	bool itemInUse = currentItem != NULL ? currentItem->getItem() == minecraft->player->getUseItem()->getItem() : false;
-	if (!isTouchInterface || minecraft->options.isJoyTouchArea || (bowEquipped && itemInUse)) {
-		minecraft->textures->loadAndBindTexture("gui/icons.png");
-		glEnable(GL_BLEND);
-		glBlendFunc2(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
-		blit(screenWidth/2 - 8, screenHeight/2 - 8, 0, 0, 16, 16);
-		glDisable(GL_BLEND);
-	} else if(!bowEquipped) {
+void Gui::renderProgressIndicator( const bool isTouchInterface, const int screenWidth, const int screenHeight, float a, bool bowEquipped, bool itemInUse ) {
+	if (!bowEquipped && (isTouchInterface && !minecraft->options.isJoyTouchArea)) {
 		const float tprogress = minecraft->gameMode->destroyProgress;
 		const float alpha = Mth::clamp(minecraft->inputHolder->alpha, 0.0f, 1.0f);
 		//LOGI("alpha: %f\n", alpha);

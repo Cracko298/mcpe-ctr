@@ -40,6 +40,7 @@ public:
         return getItem(pos);
     }
 
+	using Container::setItem;
 	//@itodo
     void setItem(int slot, const ItemInstance& item) {
         items[slot] = item;

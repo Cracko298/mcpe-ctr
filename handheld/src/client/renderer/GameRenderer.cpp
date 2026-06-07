@@ -30,6 +30,7 @@
 
 #ifdef __3DS__
 #include <NovaGL.h>
+#include "../../util/CtrFrameTiming.h"
 #endif
 
 int g_stereoEyeCount = 1;
@@ -324,10 +325,16 @@ void GameRenderer::renderDualScreen3ds(float a) {
 			const int hudEyes = (g_stereoNativeActive && g_stereoEyeCount > 1) ? g_stereoEyeCount : 1;
 			for (int hudEye = 0; hudEye < hudEyes; hudEye++) {
 				if (hudEyes > 1) nova_set_render_target(hudEye);
+				#ifdef __3DS__
+				CtrFrameTiming::markStart(CtrFrameTiming::GUI);
+				#endif
 				TIMER_PUSH("hud");
 				setupGuiScreen(false, mc->width, mc->height);
 				mc->gui.renderTopHud(a);
 				TIMER_POP();
+				#ifdef __3DS__
+				CtrFrameTiming::markEnd(CtrFrameTiming::GUI);
+				#endif
 
 				// Хотбар на верхнем экране — только когда нижний скрыт под экраном.
 				if (screenHidesHotbar) {
@@ -417,6 +424,9 @@ void GameRenderer::renderLevel(float a) {
 		}
     }
 
+	#ifdef __3DS__
+	CtrFrameTiming::markStart(CtrFrameTiming::PICK);
+	#endif
 	TIMER_PUSH("pick");
     pick(a);
 
@@ -447,7 +457,13 @@ void GameRenderer::renderLevel(float a) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable2(GL_CULL_FACE);
 
-		TIMER_POP_PUSH("camera");
+		#ifdef __3DS__
+		CtrFrameTiming::markEnd(CtrFrameTiming::PICK);
+		#endif
+	#ifdef __3DS__
+	CtrFrameTiming::markStart(CtrFrameTiming::SETUP);
+	#endif
+	TIMER_POP_PUSH("camera");
         setupCamera(a, i);
 		saveMatrices();
 
@@ -477,13 +493,22 @@ void GameRenderer::renderLevel(float a) {
 		FrustumCuller frustum;
         frustum.prepare(xOff, yOff, zOff);
 
-		TIMER_POP_PUSH("culling");
+		#ifdef __3DS__
+		CtrFrameTiming::markEnd(CtrFrameTiming::SETUP);
+		#endif
+	#ifdef __3DS__
+	CtrFrameTiming::markStart(CtrFrameTiming::UDC);
+	#endif
+	TIMER_POP_PUSH("culling");
 		{
 			mc->levelRenderer->cull(&frustum, a);
 		}
 		{
 			mc->levelRenderer->updateDirtyChunks(cameraEntity, false);
 		}
+		#ifdef __3DS__
+		CtrFrameTiming::markEnd(CtrFrameTiming::UDC);
+		#endif
 
 		if(mc->options.fancyGraphics) {
 			prepareAndRenderClouds(levelRenderer, a);
@@ -496,27 +521,51 @@ void GameRenderer::renderLevel(float a) {
         glDisable2(GL_ALPHA_TEST);
         glDisable2(GL_BLEND);
         glEnable2(GL_CULL_FACE);
+		#ifdef __3DS__
+		CtrFrameTiming::markStart(CtrFrameTiming::TERRAIN0);
+		#endif
 		TIMER_POP_PUSH("terrain-0");
 		{
 			levelRenderer->render(cameraEntity, 0, a);
 		}
+		#ifdef __3DS__
+		CtrFrameTiming::markEnd(CtrFrameTiming::TERRAIN0);
+		#endif
 
+		#ifdef __3DS__
+		CtrFrameTiming::markStart(CtrFrameTiming::TERRAIN1);
+		#endif
 		TIMER_POP_PUSH("terrain-1");
         glEnable2(GL_ALPHA_TEST);
 		{
 			levelRenderer->render(cameraEntity, 1, a);
 		}
+		#ifdef __3DS__
+		CtrFrameTiming::markEnd(CtrFrameTiming::TERRAIN1);
+		#endif
 
         glShadeModel2(GL_FLAT);
+		#ifdef __3DS__
+		CtrFrameTiming::markStart(CtrFrameTiming::ENTITIES);
+		#endif
 		TIMER_POP_PUSH("entities");
 		{
 			mc->levelRenderer->renderEntities(cameraEntity->getPos(a), &frustum, a);
 		}
+		#ifdef __3DS__
+		CtrFrameTiming::markEnd(CtrFrameTiming::ENTITIES);
+		#endif
 //        setupFog(0);
+		#ifdef __3DS__
+		CtrFrameTiming::markStart(CtrFrameTiming::PARTICLES);
+		#endif
 		TIMER_POP_PUSH("particles");
 		{
 			particleEngine->render(cameraEntity, a);
 		}
+		#ifdef __3DS__
+		CtrFrameTiming::markEnd(CtrFrameTiming::PARTICLES);
+		#endif
 
 		glDisable2(GL_BLEND);
         glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -541,9 +590,15 @@ void GameRenderer::renderLevel(float a) {
 		{
 			//glDepthRangef(0.1f, 1.0f);
 			//glDepthMask(GL_FALSE);
+			#ifdef __3DS__
+			CtrFrameTiming::markStart(CtrFrameTiming::WATER);
+			#endif
 			TIMER_POP_PUSH("terrain-water");
 			glEnable2(GL_DEPTH_TEST);
             levelRenderer->render(cameraEntity, 2, a);
+			#ifdef __3DS__
+			CtrFrameTiming::markEnd(CtrFrameTiming::WATER);
+			#endif
 			//glDepthRangef(0, 1);
 
         }
@@ -573,9 +628,50 @@ void GameRenderer::renderLevel(float a) {
         setupFog(1);
 
         if (zoom == 1) {
+			#ifdef __3DS__
+			CtrFrameTiming::markStart(CtrFrameTiming::HAND);
+			#endif
 			TIMER_POP_PUSH("hand");
-            glClear(GL_DEPTH_BUFFER_BIT);
+            // 3DS mid-frame glClear doesn't work, so we manually clear the depth buffer to 1.0
+            glDepthMask(GL_TRUE);
+            glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+            glDisable2(GL_CULL_FACE);
+            glDisable2(GL_BLEND);
+            glDisable2(GL_ALPHA_TEST);
+            glDisable2(GL_TEXTURE_2D);
+            glDepthFunc(GL_ALWAYS);
+
+            glMatrixMode(GL_PROJECTION);
+            glPushMatrix2();
+            glLoadIdentity2();
+            glMatrixMode(GL_MODELVIEW);
+            glPushMatrix2();
+            glLoadIdentity2();
+
+            Tesselator& t = Tesselator::instance;
+            t.begin();
+            t.vertex(-1, -1, 1);
+            t.vertex( 1, -1, 1);
+            t.vertex( 1,  1, 1);
+            t.vertex(-1,  1, 1);
+            t.draw();
+
+            glPopMatrix2();
+            glMatrixMode(GL_PROJECTION);
+            glPopMatrix2();
+            glMatrixMode(GL_MODELVIEW);
+
+            glDepthFunc(GL_LEQUAL);
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            glEnable2(GL_CULL_FACE);
+            glEnable2(GL_ALPHA_TEST);
+            glEnable2(GL_TEXTURE_2D);
+            
+            glClear(GL_DEPTH_BUFFER_BIT); // Keep just in case for other platforms
             renderItemInHand(a, i);
+			#ifdef __3DS__
+			CtrFrameTiming::markEnd(CtrFrameTiming::HAND);
+			#endif
         }
 
         bool moreEyes = mc->options.anaglyph3d || (g_stereoNativeActive && (i + 1) < g_stereoEyeCount);
@@ -783,11 +879,11 @@ void GameRenderer::setupFog(int i) {
     } else {
     	glFogf(GL_FOG_MODE, GL_LINEAR);
 
-        glFogf(GL_FOG_START, renderDistance * 0.6f);
-        glFogf(GL_FOG_END, renderDistance);
+        glFogf(GL_FOG_START, renderDistance * 0.25f);
+        glFogf(GL_FOG_END, renderDistance * 0.75f);
         if (i < 0) {
             glFogf(GL_FOG_START, 0);
-            glFogf(GL_FOG_END, renderDistance * 1.0f);
+            glFogf(GL_FOG_END, renderDistance * 0.75f);
         }
 
         if (mc->level->dimension->foggy) {

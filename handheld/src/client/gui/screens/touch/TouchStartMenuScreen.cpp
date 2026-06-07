@@ -293,11 +293,11 @@ void StartMenuScreen::render( int xm, int ym, float a )
 			t.draw();
 		}
 
-		// Подзаголовок
-		const char* tagline = "Pocket Edition  -  3DS Port by efimandreev0";
-		int tw = minecraft->font->width(tagline);
-		drawString(font, tagline, (width - tw) / 2,
-			(int)((float)height * 0.40f) + 38, 0xffffdd55);
+		// Подзаголовок (removed)
+		// const char* tagline = "Pocket Edition  -  3DS Port by efimandreev0";
+		// int tw = minecraft->font->width(tagline);
+		// drawString(font, tagline, (width - tw) / 2,
+		// 	(int)((float)height * 0.40f) + 38, 0xffffdd55);
 
 		// Версия и копирайт
 		drawString(font, version, versionPosX, height - 32, 0xffcccccc);

@@ -84,8 +84,8 @@ void Screen::mouseEvent()
 
 	if (Mouse::getEventButtonState()) {
 #ifdef __3DS__
-		int xm = (int)(e.x * Gui::InvGuiScale);
-		int ym = (int)(e.y * Gui::InvGuiScale);
+		int xm = (int)(e.x * width / 320.0f);
+		int ym = (int)(e.y * height / 240.0f);
 #else
 		int xm = e.x * width / minecraft->width;
 		int ym = e.y * height / minecraft->height - 1;
@@ -93,8 +93,8 @@ void Screen::mouseEvent()
 		mouseClicked(xm, ym, Mouse::getEventButton());
 	} else {
 #ifdef __3DS__
-		int xm = (int)(e.x * Gui::InvGuiScale);
-		int ym = (int)(e.y * Gui::InvGuiScale);
+		int xm = (int)(e.x * width / 320.0f);
+		int ym = (int)(e.y * height / 240.0f);
 #else
 		int xm = e.x * width / minecraft->width;
 		int ym = e.y * height / minecraft->height - 1;
@@ -211,7 +211,7 @@ void Screen::updateTabButtonSelection()
 		return;
 
 	for (unsigned int i = 0; i < tabButtons.size(); ++i)
-		tabButtons[i]->selected = (i == tabButtonIndex);
+		tabButtons[i]->selected = ((int)i == tabButtonIndex);
 }
 
 void Screen::mouseClicked( int x, int y, int buttonNum )
@@ -275,8 +275,8 @@ void Screen::lostFocus() {
 
 void Screen::toGUICoordinate( int& x, int& y ) {
 #ifdef __3DS__
-	x = (int)(x * Gui::InvGuiScale);
-	y = (int)(y * Gui::InvGuiScale);
+	x = (int)(x * width / 320.0f);
+	y = (int)(y * height / 240.0f);
 #else
 	x = x * width / minecraft->width;
 	y = y * height / minecraft->height - 1;

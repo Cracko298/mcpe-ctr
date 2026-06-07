@@ -158,7 +158,7 @@ void InventoryPane::renderBatch( std::vector<GridItem>& items, float alpha )
 	}
 
 	if (renderDecorations) {
-		t.beginOverride();
+		glDisable2(GL_TEXTURE_2D);
 		for (unsigned int i = 0; i < items.size(); ++i) {
 			GridItem& item = items[i];
 			const ItemInstance* citem = inventoryItems[item.id];
@@ -168,9 +168,6 @@ void InventoryPane::renderBatch( std::vector<GridItem>& items, float alpha )
 				ItemRenderer::renderGuiItemDecorations(citem, item.xf + 8, item.yf + 12);
 			}
 		}
-
-		glDisable2(GL_TEXTURE_2D);
-		t.endOverrideAndDraw();
 		glEnable2(GL_TEXTURE_2D);
 	}
 	glDisable2(GL_SCISSOR_TEST);

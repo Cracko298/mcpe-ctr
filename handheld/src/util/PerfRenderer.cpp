@@ -101,90 +101,6 @@ void PerfRenderer::renderFpsMeter( float tickTime )
 		totalTime += frameTimes[i];
 	}
 	int hh = (int) (totalTime / 200 / frameTimes.size());
-	t.begin();
-	t.color(0x20400000);
-	t.vertex(0, (float)(_mc->height - hh), 0);
-	t.vertex(0, (float)_mc->height, 0);
-	t.vertex(count, (float)_mc->height, 0);
-	t.vertex(count, (float)(_mc->height - hh), 0);
-	t.draw();
-
-	t.begin(GL_LINES);
-	for (unsigned int i = 0; i < frameTimes.size(); i++) {
-		int col = ((i - frameTimePos) & (frameTimes.size() - 1)) * 255 / frameTimes.size();
-		int cc = col * col / 255;
-		cc = cc * cc / 255;
-		int cc2 = cc * cc / 255;
-		cc2 = cc2 * cc2 / 255;
-		if (frameTimes[i] > usPer60Fps) {
-			t.color(0xff000000 + cc * 65536);
-		} else {
-			t.color(0xff000000 + cc * 256);
-		}
-
-		float time = 10 * 1000 * frameTimes[i] / 200;
-		float time2 = 10 * 1000 * tickTimes[i] / 200;
-
-		t.vertex(i + 0.5f, _mc->height - time + 0.5f, 0);
-		t.vertex(i + 0.5f, _mc->height + 0.5f, 0);
-
-		// if (_mc->frameTimes[i]>nsPer60Fps) {
-		t.color(0xff000000 + cc * 65536 + cc * 256 + cc * 1);
-		// } else {
-		// t.color(0xff808080 + cc/2 * 256);
-		// }
-		t.vertex(i + 0.5f, _mc->height - time + 0.5f, 0);
-		t.vertex(i + 0.5f, _mc->height - (time - time2) + 0.5f, 0);
-	}
-	t.draw();
-	//t.end();
-
-	int r = 160;
-	int x = _mc->width - r - 10;
-	int y = _mc->height - r * 2;
-	glEnable(GL_BLEND);
-	t.begin();
-	t.color(0x000000, 200);
-	t.vertex(x - r * 1.1f, y - r * 0.6f - 16, 0);
-	t.vertex(x - r * 1.1f, y + r * 2.0f, 0);
-	t.vertex(x + r * 1.1f, y + r * 2.0f, 0);
-	t.vertex(x + r * 1.1f, y - r * 0.6f - 16, 0);
-	t.draw();
-	glDisable(GL_BLEND);
-
-	glDisable(GL_CULL_FACE);
-
-	float totalPercentage = 0;
-	for (unsigned int i = 0; i < list.size(); i++) {
-		PerfTimer::ResultField& result = list[i];
-
-		int steps = Mth::floor(result.percentage / 4) + 1;
-
-		t.begin(GL_TRIANGLE_FAN);
-		t.color(result.getColor());
-		t.vertex((float)x, (float)y, 0);
-		for (int j = steps; j >= 0; j--) {
-			float dir = (float) ((totalPercentage + (result.percentage * j / steps)) * Mth::PI * 2 / 100);
-			float xx = Mth::sin(dir) * r;
-			float yy = Mth::cos(dir) * r * 0.5f;
-			t.vertex(x + xx, y - yy, 0);
-			//LOGI("xy: %f, %f\n", x+xx, y - yy);
-		}
-		t.draw();
-		t.begin(GL_TRIANGLE_STRIP);
-		t.color((result.getColor() & 0xfefefe) >> 1);
-		for (int j = steps; j >= 0; j--) {
-			float dir = (float) ((totalPercentage + (result.percentage * j / steps)) * Mth::PI * 2 / 100);
-			float xx = Mth::sin(dir) * r;
-			float yy = Mth::cos(dir) * r * 0.5f;
-			t.vertex(x + xx, y - yy, 0);
-			t.vertex(x + xx, y - yy + 10, 0);
-		}
-		t.draw();
-
-		totalPercentage += result.percentage;
-	}
-
 	glEnable(GL_TEXTURE_2D);
 
 	{
@@ -198,9 +114,9 @@ void PerfRenderer::renderFpsMeter( float tickTime )
 			msg << node.name << " ";
 		}
 		int col = 0xffffff;
-		_font->drawShadow(msg.str(), (float)(x - r), (float)(y - r / 2 - 16), col);
+		_font->drawShadow(msg.str(), 10.0f, 10.0f, col);
 		std::string msg2 = toPercentString(node.globalPercentage);
-		_font->drawShadow(msg2, (float)(x + r - _font->width(msg2)), (float)(y - r / 2 - 16), col);
+		_font->drawShadow(msg2, 100.0f, 10.0f, col);
 	}
 
 	for (unsigned int i = 0; i < list.size(); i++) {
@@ -213,14 +129,19 @@ void PerfRenderer::renderFpsMeter( float tickTime )
 		}
 
 		msg << result.name;
-		float xx = (float)(x - r);
-		float yy = (float)(y + r/2 + i * 8 + 20);
-		_font->drawShadow(msg.str(), xx, yy, result.getColor());
+		float xx = 10.0f;
+		float yy = 20.0f + i * 10.0f;
+		
+		int color = result.getColor();
+		if (result.percentage > 30.0f) {
+			color = 0xff0000; // Red for bottleneck
+		}
+		
+		_font->drawShadow(msg.str(), xx, yy, color);
 		std::string msg2 = toPercentString(result.percentage);
-		//LOGI("name: %s: perc: %f == %s @ %d, %d\n", msg.str().c_str(), result.percentage, msg2.c_str(), xx, yy);
-		_font->drawShadow(msg2, xx - 50 - _font->width(msg2), yy, result.getColor());
+		_font->drawShadow(msg2, xx + 100.0f, yy, color);
 		msg2 = toPercentString(result.globalPercentage);
-		_font->drawShadow(msg2, xx - _font->width(msg2), yy, result.getColor());
+		_font->drawShadow(msg2, xx + 150.0f, yy, color);
 	}
 }
 

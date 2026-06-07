@@ -103,6 +103,10 @@ public:
 		// Левый Circle Pad
 		float stickX = Controller::getTransformedX(moveStick, 0.2f, 1.25f, true);
 		float stickY = Controller::getTransformedY(moveStick, 0.2f, 1.25f, true);
+		if (sneaking) {
+			stickX *= 0.3f;
+			stickY *= 0.3f;
+		}
 		xa += -stickX;
 		ya += -stickY;
 		updateStickSprint(-stickY);
@@ -150,7 +154,14 @@ public:
 	N3dsInputHolder(Minecraft* mc, Options* options) :
 		_mc(mc),
 		_move(options),
-		_turnBuild(UnifiedTurnBuild::MODE_DELTA, mc->width, mc->height, (float)MovementLimit, 1, this, mc)
+		_turnBuild(UnifiedTurnBuild::MODE_DELTA, mc->width, mc->height, (float)MovementLimit, 1, this, mc),
+		_minimapArea(0,0,0,0),
+		_btn1Area(0,0,0,0),
+		_btn2Area(0,0,0,0),
+		_camZoneExcludeArea1(0,0,0,0),
+		_camZoneExcludeArea2(0,0,0,0),
+		_camZoneExcludeArea3(0,0,0,0),
+		_camZoneExcludeArea4(0,0,0,0)
 	{
 		onConfigChanged(createConfig(mc));
 	}
@@ -163,6 +174,31 @@ public:
 		// Чувствительность тачскрина (стилус по нижнему экрану)
 		_turnBuild.setSensitivity(c.options->isJoyTouchArea ? 2.8f : 1.8f);
 		((ITurnInput*)&_turnBuild)->onConfigChanged(c);
+
+		if (!c.options->xybaCamera) {
+			// In Cam Zone mode, restrict the touch area to only the Cam Zone square
+			int screenWidth  = _mc->gui.getBottomGuiWidth();
+			int screenHeight = _mc->gui.getBottomGuiHeight();
+			int mapX0 = screenWidth - 54;
+			int py0 = 31;
+			int px0 = 4;
+			int py1 = screenHeight - 4;
+
+			_camZoneExcludeArea1 = RectangleArea(0, 0, px0, screenHeight); // Left
+			_camZoneExcludeArea2 = RectangleArea(mapX0, 0, screenWidth, screenHeight); // Right
+			_camZoneExcludeArea3 = RectangleArea(0, 0, screenWidth, py0); // Top
+			_camZoneExcludeArea4 = RectangleArea(0, py1, screenWidth, screenHeight); // Bottom
+
+			_turnBuild.addExcludeArea(&_camZoneExcludeArea1);
+			_turnBuild.addExcludeArea(&_camZoneExcludeArea2);
+			_turnBuild.addExcludeArea(&_camZoneExcludeArea3);
+			_turnBuild.addExcludeArea(&_camZoneExcludeArea4);
+		} else {
+			// In XYBA mode, COMPLETELY disable camera turning via touch.
+			// (Block breaking is disabled in Gui::isInside).
+			_camZoneExcludeArea1 = RectangleArea(0, 0, _mc->gui.getBottomGuiWidth(), _mc->gui.getBottomGuiHeight());
+			_turnBuild.addExcludeArea(&_camZoneExcludeArea1);
+		}
 	}
 
 	bool allowPicking() override {
@@ -202,6 +238,13 @@ private:
 	N3dsMoveInput _move;
 	N3dsTurnBuild _turnBuild;
 	Minecraft* _mc;
+	RectangleArea _minimapArea;
+	RectangleArea _btn1Area;
+	RectangleArea _btn2Area;
+	RectangleArea _camZoneExcludeArea1;
+	RectangleArea _camZoneExcludeArea2;
+	RectangleArea _camZoneExcludeArea3;
+	RectangleArea _camZoneExcludeArea4;
 };
 
 #endif /*NET_MINECRAFT_CLIENT_PLAYER__N3dsInput_H__*/

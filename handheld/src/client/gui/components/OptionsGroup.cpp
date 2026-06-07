@@ -8,8 +8,16 @@
 #include "../../../locale/I18n.h"
 #include "../../sound/SoundEngine.h"
 
+static std::string getTranslatedOrOriginal(const std::string& key) {
+	std::string t = I18n::get(key);
+	if (t == key + "<") {
+		return key;
+	}
+	return t;
+}
+
 OptionsGroup::OptionsGroup( std::string labelID )  {
-	label = I18n::get(labelID);
+	label = getTranslatedOrOriginal(labelID);
 }
 
 void OptionsGroup::setupPositions() {
@@ -26,7 +34,10 @@ void OptionsGroup::setupPositions() {
 }
 
 void OptionsGroup::render( Minecraft* minecraft, int xm, int ym ) {
+#ifndef __3DS__
+	// On 3DS the header banner already shows the page title, so skip the group label
 	minecraft->font->draw(label, (float)x + 2, (float)y, 0xffffffff, false);
+#endif
 	super::render(minecraft, xm, ym);
 }
 
@@ -49,7 +60,7 @@ void OptionsGroup::createToggle( const Options::Option* option, Minecraft* minec
 	OptionButton* element = new OptionButton(option);
 	element->setImageDef(def, true);
 	element->updateImage(&minecraft->options);
-	std::string itemLabel = I18n::get(option->getCaptionId());
+	std::string itemLabel = getTranslatedOrOriginal(option->getCaptionId());
 	OptionsItem* item = new OptionsItem(itemLabel, element);
 	addChild(item);
 	setupPositions();
@@ -62,7 +73,7 @@ void OptionsGroup::createProgressSlider( const Options::Option* option, Minecraf
 									minecraft->options.getProgrssMax(option));
 	element->width = 100;
 	element->height = 20;
-	std::string itemLabel = I18n::get(option->getCaptionId());
+	std::string itemLabel = getTranslatedOrOriginal(option->getCaptionId());
 	OptionsItem* item = new OptionsItem(itemLabel, element);
 	addChild(item);
 	setupPositions();
@@ -73,14 +84,14 @@ public:
 	const Options::Option* _option;
 	StepOptionButton(const Options::Option* option, Minecraft* mc) : Button(9999999, ""), _option(option) {
 		std::string key = mc->options.getMessage(_option);
-		msg = I18n::get(key);
+		msg = getTranslatedOrOriginal(key);
 	}
 	virtual void mouseClicked(Minecraft* minecraft, int x, int y, int buttonNum) {
 		if(buttonNum == MouseAction::ACTION_LEFT && clicked(minecraft, x, y)) {
 			minecraft->soundEngine->playUI("random.click", 1, 1);
 			minecraft->options.toggle(_option, 1);
 			std::string key = minecraft->options.getMessage(_option);
-			msg = I18n::get(key);
+			msg = getTranslatedOrOriginal(key);
 		}
 	}
 };
@@ -90,14 +101,14 @@ public:
 	const Options::Option* _option;
 	TouchStepOptionButton(const Options::Option* option, Minecraft* mc) : Touch::TButton(9999999, ""), _option(option) {
 		std::string key = mc->options.getMessage(_option);
-		msg = I18n::get(key);
+		msg = getTranslatedOrOriginal(key);
 	}
 	virtual void mouseClicked(Minecraft* minecraft, int x, int y, int buttonNum) {
 		if(buttonNum == MouseAction::ACTION_LEFT && clicked(minecraft, x, y)) {
 			minecraft->soundEngine->playUI("random.click", 1, 1);
 			minecraft->options.toggle(_option, 1);
 			std::string key = minecraft->options.getMessage(_option);
-			msg = I18n::get(key);
+			msg = getTranslatedOrOriginal(key);
 		}
 	}
 };
@@ -111,7 +122,7 @@ void OptionsGroup::createStepSlider( const Options::Option* option, Minecraft* m
 	}
 	element->width = 100;
 	element->height = 20;
-	std::string itemLabel = I18n::get(option->getCaptionId());
+	std::string itemLabel = getTranslatedOrOriginal(option->getCaptionId());
 	OptionsItem* item = new OptionsItem(itemLabel, element);
 	addChild(item);
 	setupPositions();

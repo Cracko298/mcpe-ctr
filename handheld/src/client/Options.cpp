@@ -26,18 +26,17 @@ void Options::initDefaultValues() {
 	guiScale = 0;
 #endif
 	useMouseForDigging = false;
-	destroyVibration = true;
 	isLeftHanded = false;
 
 	isJoyTouchArea = false;
 	xybaCamera = false;
 	autoJump = true;
 
-	music = 1;
-	sound = 1;
+	music = 1.0f;
+	sound = 1.0f;
 	sensitivity = 0.5f;
 	invertYMouse = false;
-	viewDistance = 2;
+	viewDistance = 1;
 	bobView = true;
 	anaglyph3d = false;
 	limitFramerate = false;
@@ -161,11 +160,10 @@ Options::Option::HIDE_GUI			 (13, "options.hidegui",     false, true),
 Options::Option::SERVER_VISIBLE		 (14, "options.servervisible", false, true),
 Options::Option::LEFT_HANDED		 (15, "options.lefthanded", false, true),
 Options::Option::USE_TOUCHSCREEN	 (16, "options.usetouchscreen", false, true),
-Options::Option::USE_TOUCH_JOYPAD	 (17, "options.usetouchpad", false, true),
-Options::Option::DESTROY_VIBRATION   (18, "options.destroyvibration", false, true),
+Options::Option::USE_TOUCH_JOYPAD	 (17, "Split Controls", false, true),
 Options::Option::PIXELS_PER_MILLIMETER(19, "options.pixelspermilimeter", true, false),
 Options::Option::RENDER_DEBUG		  (20, "options.renderDebug", false, true),
-Options::Option::CONTROL_SCHEME		  (21, "options.controlScheme", false, true),
+Options::Option::CONTROL_SCHEME		  (21, "XYBA controls Camera", false, true),
 Options::Option::AUTO_JUMP			  (22, "options.autoJump", false, true);
 
 const float Options::SOUND_MIN_VALUE = 0.0f;
@@ -226,7 +224,7 @@ void Options::set(const Options::Option* item, int value) {
 
 
 void Options::update() {
-	viewDistance = 2;
+	viewDistance = 1;
 	sensitivity = 0.5f;
 	StringVector optionStrings = optionsFile.getOptionStrings();
 	for (unsigned int i = 0; i < optionStrings.size(); i += 2) {
@@ -264,7 +262,6 @@ void Options::update() {
 
 		// Feedback
 		if (key == OptionStrings::Controls_FeedbackVibration)
-			readBool(value, destroyVibration);
 
 		// Graphics
 		if (key == OptionStrings::Graphics_Fancy) {
@@ -288,7 +285,9 @@ void Options::update() {
 
 		// new settings :
 
+#ifndef __3DS__
 		if (key == OptionStrings::Graphics_Debug) readBool(value, renderDebug);
+#endif
 		if (key == OptionStrings::Graphics_RenderDistance) readInt(value, viewDistance);
 		if (key == OptionStrings::Audio_Music) readFloat(value, music);
 		if (key == OptionStrings::Audio_Sound) readFloat(value, sound);
@@ -318,9 +317,10 @@ void Options::save() {
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_UseTouchJoypad, isJoyTouchArea);
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_Scheme, xybaCamera);
 	addOptionToSaveOutput(stringVec, OptionStrings::Controls_AutoJump, autoJump);
-	addOptionToSaveOutput(stringVec, OptionStrings::Controls_FeedbackVibration, destroyVibration);
 
+#ifndef __3DS__
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Debug, renderDebug);
+#endif
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_RenderDistance, viewDistance);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Fancy, fancyGraphics);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_AmbientOcclusion, ambientOcclusion);
@@ -375,7 +375,7 @@ std::string Options::getMessage(const Option* item) {
 		return GUI_SCALE[guiScale];
 	}
 	if (item == &Options::Option::CONTROL_SCHEME) {
-		return xybaCamera ? "options.scheme.xyba" : "options.scheme.camzone";
+		return xybaCamera ? "XYBA controls Camera" : "Cam Zone controls Camera";
 	}
 
 	if (item->isBoolean()) {

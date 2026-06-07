@@ -19,6 +19,16 @@ void OptionsItem::setupPositions() {
 
 void OptionsItem::render( Minecraft* minecraft, int xm, int ym ) {
 	int yOffset = (height - 8) / 2;
-	minecraft->font->draw(label, (float)x, (float)y + yOffset, 0x909090, false);
+	
+	int elementX = x + width;
+	if (!children.empty()) {
+		elementX = children[0]->x;
+	}
+	int availableWidth = elementX - x - 5;
+	if (availableWidth < 10) availableWidth = 10;
+	
+	std::string clippedLabel = minecraft->font->clipToWidth(label, availableWidth);
+	
+	minecraft->font->draw(clippedLabel, (float)x, (float)y + yOffset, 0x909090, false);
 	super::render(minecraft, xm, ym);
 }

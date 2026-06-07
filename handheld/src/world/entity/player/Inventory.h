@@ -36,6 +36,7 @@ public:
 	bool			moveToSelectedSlot(int inventorySlot, bool propagate);
 	bool			moveToEmptySelectionSlot(int inventorySlot);
 
+	using FillingContainer::removeItem;
 	bool			removeItem(const ItemInstance* samePtr);
 
 	void			doDrop(ItemInstance* item, bool randomly);

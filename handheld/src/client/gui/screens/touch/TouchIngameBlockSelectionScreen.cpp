@@ -43,8 +43,13 @@ namespace Touch {
 
 static const int ItemSize = (int)(BlockPixels + 2*BorderPixels);
 
+#ifdef __3DS__
+static const int Bx = 6; // Balanced for 3DS bottom screen
+static const int By = 4;
+#else
 static const int Bx = 10; // Border Frame width
 static const int By = 6; // Border Frame height
+#endif
     
 //
 // Block selection screen
@@ -73,10 +78,16 @@ void IngameBlockSelectionScreen::init()
 
 	//const int itemWidth = 2 * BorderPixels + 
 
-	int maxWidth = width - Bx - Bx;
+#ifdef __3DS__
+	int cw = 320;
+#else
+	int cw = width;
+#endif
+
+	int maxWidth = cw - Bx - Bx;
 	InventoryColumns = maxWidth / ItemSize;
 	const int realWidth = InventoryColumns * ItemSize;
-	const int realBx = (width - realWidth) / 2;
+	const int realBx = (cw - realWidth) / 2;
 
 	IntRectangle rect(realBx,
 #ifdef __APPLE__
@@ -117,20 +128,34 @@ void IngameBlockSelectionScreen::init()
 }
 
 void IngameBlockSelectionScreen::setupPositions() {
+	bool isLeftHanded = minecraft->options.isLeftHanded;
 	bHeader.y = bDone.y = bCraft.y = 0;
-	bDone.x   = width -  bDone.width;
-	bCraft.x  = 0;//width - bDone.w - bCraft.w;
-	bCraft.width = bArmor.width = 48;
-	bArmor.x = bCraft.width;
+	
+	if (isLeftHanded) {
+		bDone.x = 0;
+		bCraft.x = width - 48; // bCraft.width
+		bArmor.x = width - 48 - 48; // bArmor.width
+		bCraft.width = bArmor.width = 48;
+	} else {
+		bDone.x   = width -  bDone.width;
+		bCraft.x  = 0;
+		bCraft.width = bArmor.width = 48;
+		bArmor.x = bCraft.width;
+	}
 
 	if (minecraft->isCreativeMode()) {
-		bHeader.x = 0;
-		bHeader.width = width;// -  bDone.w;
+		bHeader.x = isLeftHanded ? bDone.width : 0;
+		bHeader.width = width;
 		bHeader.xText = width/2; // Center of the screen
 	} else {
-		bHeader.x = bCraft.width + bArmor.width;
-		bHeader.width = width - bCraft.width - bArmor.width;// -  bDone.w;
-		bHeader.xText = bHeader.x + (bHeader.width - bDone.width) /2;
+		if (isLeftHanded) {
+			bHeader.x = bDone.width;
+			bHeader.width = width - bCraft.width - bArmor.width;
+		} else {
+			bHeader.x = bCraft.width + bArmor.width;
+			bHeader.width = width - bCraft.width - bArmor.width;
+		}
+		bHeader.xText = bHeader.x + (bHeader.width - bDone.width) / 2;
 	}
 
 	clippingArea.x = 0;
@@ -146,7 +171,12 @@ void IngameBlockSelectionScreen::removed()
 
 int IngameBlockSelectionScreen::getSlotPosX(int slotX) {
     // @todo: Number of columns
-	return width / 2 - InventoryColumns * 10 + slotX * 20 + 2;
+#ifdef __3DS__
+	int cw = 320;
+#else
+	int cw = width;
+#endif
+	return cw / 2 - InventoryColumns * 10 + slotX * 20 + 2;
 }
 
 int IngameBlockSelectionScreen::getSlotPosY(int slotY) {

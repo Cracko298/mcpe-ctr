@@ -109,6 +109,7 @@ public:
 	int getArmorTypeHash();
 
     void interact(Entity* entity);
+	using Entity::interact;
     void attack(Entity* entity);
 	virtual ItemInstance* getCarriedItem();
 	bool canUseCarriedItemWhileMoving();

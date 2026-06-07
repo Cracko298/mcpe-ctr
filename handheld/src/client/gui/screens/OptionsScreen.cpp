@@ -117,22 +117,20 @@ void OptionsScreen::setupPositions() {
 void OptionsScreen::render( int xm, int ym, float a ) {
 #ifdef __3DS__
 	if (Screen::s_isRenderingTopScreen3ds) {
-		// Верхний экран: земляной фон + крупный заголовок + страница.
 		renderDirtBackground(0);
 
 		Font* f = minecraft->font;
+
+		// Top screen always shows "Options" — page name is on the bottom screen banner
 		const char* title = "Options";
 		int tw = f->width(title);
-		// Лёгкий "тайтл" эффект — двойной шрифт
-		f->drawShadow(title, (width - tw * 2) / 2, height / 2 - 16, 0xffffffff);
-		// Реальный шрифт без масштаба — просто крупный (рисуем дважды чуть смещаясь даёт жирный вид)
-		f->drawShadow(title, (width - tw) / 2 + 1, height / 2 - 4, 0xffffaa00);
-		f->drawShadow(title, (width - tw) / 2,     height / 2 - 4, 0xffffdd55);
+		f->drawShadow(title, (width - tw) / 2 + 1, height / 2 - 18, 0xffffaa00);
+		f->drawShadow(title, (width - tw) / 2,     height / 2 - 18, 0xffffdd55);
 
 		char buf[64];
 		sprintf(buf, "Page %d / %d", currentPage + 1, maxPages);
 		int bw = f->width(buf);
-		f->drawShadow(buf, (width - bw) / 2, height / 2 + 8, 0xffcccccc);
+		f->drawShadow(buf, (width - bw) / 2, height / 2 + 4, 0xffcccccc);
 
 		const char* hint = "Use < / > on touchscreen to switch pages";
 		int hw = f->width(hint);
@@ -185,20 +183,18 @@ void OptionsScreen::generateOptionScreens() {
 		delete optionPane;
 	}
 	optionPane = new OptionsPane();
-	char buf[32];
-	sprintf(buf, "Options (%d/%d)", currentPage + 1, maxPages);
-	if (bHeader) bHeader->msg = buf;
+	const char* pageNames[] = {"Video Settings", "Game Settings", "Control Settings"};
+	if (bHeader) {
+		if (currentPage >= 0 && currentPage < 3) bHeader->msg = pageNames[currentPage];
+		else bHeader->msg = "Options";
+	}
 	
 	if (currentPage == 0) {
 		optionPane->createOptionsGroup("options.group.video")
-			.addOptionItem(&Options::Option::GRAPHICS, minecraft)
 			.addOptionItem(&Options::Option::RENDER_DISTANCE, minecraft)
-			.addOptionItem(&Options::Option::AMBIENT_OCCLUSION, minecraft)
 			.addOptionItem(&Options::Option::VIEW_BOBBING, minecraft)
 			.addOptionItem(&Options::Option::ANAGLYPH, minecraft)
-			.addOptionItem(&Options::Option::RENDER_DEBUG, minecraft)
-			.addOptionItem(&Options::Option::LIMIT_FRAMERATE, minecraft)
-			.addOptionItem(&Options::Option::GUI_SCALE, minecraft);
+			.addOptionItem(&Options::Option::LIMIT_FRAMERATE, minecraft);
 	} else if (currentPage == 1) {
 		optionPane->createOptionsGroup("options.group.game")
 			.addOptionItem(&Options::Option::DIFFICULTY, minecraft)
@@ -211,10 +207,7 @@ void OptionsScreen::generateOptionScreens() {
 			.addOptionItem(&Options::Option::INVERT_MOUSE, minecraft)
 			.addOptionItem(&Options::Option::CONTROL_SCHEME, minecraft)
 			.addOptionItem(&Options::Option::AUTO_JUMP, minecraft)
-			.addOptionItem(&Options::Option::LEFT_HANDED, minecraft)
-			.addOptionItem(&Options::Option::USE_TOUCHSCREEN, minecraft)
-			.addOptionItem(&Options::Option::USE_TOUCH_JOYPAD, minecraft)
-			.addOptionItem(&Options::Option::DESTROY_VIBRATION, minecraft);
+			.addOptionItem(&Options::Option::USE_TOUCH_JOYPAD, minecraft);
 
 		optionPane->createOptionsGroup("options.group.audio")
 			.addOptionItem(&Options::Option::SOUND, minecraft);

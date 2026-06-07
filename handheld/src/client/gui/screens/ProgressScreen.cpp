@@ -19,6 +19,14 @@ void ProgressScreen::render( int xm, int ym, float a )
 		return;
 	}
 
+#ifdef __3DS__
+	// Only render loading UI on the top screen; bottom screen gets dirt background only
+	if (!Screen::s_isRenderingTopScreen3ds) {
+		renderDirtBackground(0);
+		return;
+	}
+#endif
+
 	Tesselator& t = Tesselator::instance;
 	renderBackground();
 

@@ -1,0 +1,100 @@
+name: Build 3DS MCPE
+
+on:
+  push:
+    branches: [ "3DS_NovaGL" ]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:latest 
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Fix ownership
+        run: git config --global --add safe.directory ${GITHUB_WORKSPACE}
+
+      - name: Install CIA build tools
+        run: |
+          # Install makerom (using v0.18.3 because v0.19.0 requires GLIBC_2.38 which is not in the devkitARM container)
+          wget -q https://github.com/3DSGuy/Project_CTR/releases/download/makerom-v0.18.3/makerom-v0.18.3-ubuntu_x86_64.zip -O /tmp/makerom.zip
+          unzip -j -o /tmp/makerom.zip -d /tmp/makerom
+          cp /tmp/makerom/makerom ${DEVKITPRO}/tools/bin/
+          chmod +x ${DEVKITPRO}/tools/bin/makerom
+          
+          # Compile bannertool from source using CMake to match the container's GLIBC
+          git clone --depth 1 https://github.com/carstene1ns/3ds-bannertool.git /tmp/bannertool-src
+          cd /tmp/bannertool-src
+          cmake -B build
+          cmake --build build
+          cp build/bannertool ${DEVKITPRO}/tools/bin/
+          chmod +x ${DEVKITPRO}/tools/bin/bannertool
+
+
+      - name: Build Optimized SDL-N3DS_NovaGL
+        run: |
+          echo "=== Cloning Optimized SDL-N3DS_NovaGL ==="
+          rm -rf handheld/lib/SDL-N3DS_NovaGL
+          git clone https://github.com/efimandreev0/SDL-N3DS_NovaGL.git handheld/lib/SDL-N3DS_NovaGL
+          
+          echo "=== Building SDL Library ==="
+          mkdir -p handheld/lib/SDL-N3DS_NovaGL/build
+          cd handheld/lib/SDL-N3DS_NovaGL/build
+          
+          # Configure and build using CMake
+          cmake -DCMAKE_TOOLCHAIN_FILE=${DEVKITPRO}/cmake/3DS.cmake -DCMAKE_BUILD_TYPE=Release ..
+          make -j$(nproc)
+          
+          # Safely copy the compiled SDL libraries using an absolute path
+          echo "=== Moving libraries to the main lib folder ==="
+          find . -name "*.a" -exec cp {} ${GITHUB_WORKSPACE}/handheld/lib/ \;
+
+      - name: Build NovaGL Dependency
+        run: |
+          echo "=== Cloning NovaGL ==="
+          rm -rf handheld/lib/NovaGL
+          git clone --recursive https://github.com/efimandreev0/NovaGL.git handheld/lib/NovaGL
+          
+          echo "=== Building NovaGL Library ==="
+          mkdir -p handheld/lib/NovaGL/build
+          cd handheld/lib/NovaGL/build
+          
+          cmake -DCMAKE_TOOLCHAIN_FILE=${DEVKITPRO}/cmake/3DS.cmake -DCMAKE_BUILD_TYPE=Release ..
+          make NovaGL -j$(nproc)
+          
+          # Safely copy the compiled NovaGL library using an absolute path
+          echo "=== Moving libraries to the main lib folder ==="
+          find . -name "*.a" -exec cp {} ${GITHUB_WORKSPACE}/handheld/lib/ \;
+
+      - name: Build MCPE
+        run: |
+          mkdir -p build/romfs_staging
+          
+          # Inject BOTH the NovaGL and custom SDL paths directly into CMakeLists.txt 
+          sed -i '1i include_directories("${CMAKE_SOURCE_DIR}/../../lib/SDL-N3DS_NovaGL/include")' handheld/project/ctr/CMakeLists.txt
+          sed -i '1i include_directories("${CMAKE_SOURCE_DIR}/../../lib/NovaGL/include")' handheld/project/ctr/CMakeLists.txt
+          sed -i '1i link_directories("${CMAKE_SOURCE_DIR}/../../lib")' handheld/project/ctr/CMakeLists.txt
+          
+          # Configure MCPE cleanly using ONLY the official toolchain
+          cmake -DCMAKE_TOOLCHAIN_FILE=${DEVKITPRO}/cmake/3DS.cmake -B build -S handheld/project/ctr
+          
+          # Final Compile
+          cd build
+          make -j$(nproc) minecraftcpp_cia
+
+      - name: Upload compiled artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MCPE-3DS-Builds
+          path: build/*.cia
+          if-no-files-found: error

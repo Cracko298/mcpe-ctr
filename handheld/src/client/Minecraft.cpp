@@ -1,4 +1,7 @@
 #include "Minecraft.h"
+#ifdef __3DS__
+#include "../util/CtrFrameTiming.h"
+#endif
 
 #if defined(APPLE_DEMO_PROMOTION)
     #define NO_NETWORK
@@ -362,9 +365,9 @@ void Minecraft::leaveGame(bool renameLevel /*=false*/)
 {
 	LOGI("Starting game leaving\n");
 
-    if (isGeneratingLevel || !_hasSignaledGeneratingLevelFinished)
-        return;
-    
+	if (isGeneratingLevel || !_hasSignaledGeneratingLevelFinished)
+		return;
+
 	isGeneratingLevel = false;
 	bool saveLevel = level && (!level->isClientSide || renameLevel);
 
@@ -529,11 +532,6 @@ void Minecraft::prepareLevel(const std::string& title) {
 		level->saveLevelData();
 		LOGI("[WORLDGEN] saveLevelData done\n");
 		flushLogOutput();
-		LOGI("[WORLDGEN] saveAll chunks start\n");
-		flushLogOutput();
-		level->getChunkSource()->saveAll(false);
-		LOGI("[WORLDGEN] saveAll chunks done\n");
-		flushLogOutput();
 		LOGI("[WORLDGEN] saveGame start\n");
 		flushLogOutput();
 		level->saveGame();
@@ -603,10 +601,13 @@ void Minecraft::update() {
 		timer.advanceTime();
 	}
 
+	CtrFrameTiming::markStart(CtrFrameTiming::NET);
 	if (raknetInstance) {
 		raknetInstance->runEvents(netCallback);
 	}
+	CtrFrameTiming::markEnd(CtrFrameTiming::NET);
 
+	CtrFrameTiming::markStart(CtrFrameTiming::TICK);
 	TIMER_PUSH("tick");
 	{
 		int toTick = timer.ticks;
@@ -615,17 +616,22 @@ void Minecraft::update() {
 	}
 
 	TIMER_POP_PUSH("updatelights");
+	CtrFrameTiming::markEnd(CtrFrameTiming::TICK);
+	CtrFrameTiming::markStart(CtrFrameTiming::LIGHTS);
 	if (level && !isGeneratingLevel) {
 		level->updateLights();
 	}
+	CtrFrameTiming::markEnd(CtrFrameTiming::LIGHTS);
 	TIMER_POP();
 
 	#ifndef STANDALONE_SERVER
 		if (gameMode != NULL) gameMode->render(timer.a);
+		CtrFrameTiming::markStart(CtrFrameTiming::SOUND);
 		TIMER_PUSH("sound");
 		{
 			soundEngine->update(player, timer.a);
 		}
+		CtrFrameTiming::markEnd(CtrFrameTiming::SOUND);
 		TIMER_POP_PUSH("render");
 		{
 			gameRenderer->render(timer.a);
@@ -641,19 +647,7 @@ void Minecraft::update() {
 #ifndef STANDALONE_SERVER
 	checkGlError("Update finished");
 
-	if (options.renderDebug) {
-		if (!PerfTimer::enabled) {
-			PerfTimer::reset();
-			PerfTimer::enabled = true;
-		}
-
-		//TIMER_PUSH("debugfps");
-		_perfRenderer->renderFpsMeter(1);
-		checkGlError("render debug");
-		//TIMER_POP();
-	} else {
-		PerfTimer::enabled = false;
-	}
+	PerfTimer::enabled = false;
 #endif
 	//LOGI("Exit Update\n");
 }
@@ -1023,20 +1017,24 @@ void Minecraft::tickInput() {
 						if (player->inventory->getItem(i))
 							player->inventory->dropSlot(i, false);
 				}
+			#ifndef __3DS__
 				if (key == Keyboard::KEY_F3) {
 					options.renderDebug = !options.renderDebug;
 				}
+			#endif
 				if (key == Keyboard::KEY_M) {
 					options.difficulty = (options.difficulty == Difficulty::PEACEFUL)?
 						Difficulty::NORMAL : Difficulty::PEACEFUL;
 					//setIsCreativeMode( !isCreativeMode() );
 				}
 
+			#ifndef __3DS__
 				if (options.renderDebug) {
 					if (key >= '0' && key <= '9') {
 						_perfRenderer->debugFpsMeterKeyPress(key - '0');
 					}
 				}
+			#endif
 			#endif
 
 			#if !defined(__VITA__) && !defined(__SWITCH__) && !defined(__3DS__) // this is handled earlier ..
@@ -1801,6 +1799,12 @@ void Minecraft::optionUpdated( const Options::Option* option, bool value ) {
 	}
 	if (player && option == &Options::Option::AUTO_JUMP) {
 		player->autoJumpEnabled = value;
+	}
+	if (option == &Options::Option::AMBIENT_OCCLUSION && levelRenderer) {
+		levelRenderer->allChanged();
+	}
+	if (option == &Options::Option::LEFT_HANDED && inputHolder) {
+		inputHolder->onConfigChanged(createConfig(this));
 	}
 }
 

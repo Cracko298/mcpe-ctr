@@ -46,7 +46,6 @@ public:
 		static const Option LEFT_HANDED;
 		static const Option USE_TOUCHSCREEN;
 		static const Option USE_TOUCH_JOYPAD;
-		static const Option DESTROY_VIBRATION;
 
 		static const Option PIXELS_PER_MILLIMETER;
 		static const Option RENDER_DEBUG;
@@ -122,7 +121,6 @@ public:
 	bool ambientOcclusion;
 	bool useMouseForDigging;
 	bool isLeftHanded;
-	bool destroyVibration;
 	//std::string skin;
 
 	KeyMapping keyUp;
@@ -211,7 +209,9 @@ public:
 		if (option == &Option::INVERT_MOUSE)	invertYMouse = !invertYMouse;
 		if (option == &Option::RENDER_DISTANCE) {
 			int vd = (int)(viewDistance + 0.5f);
-			viewDistance = (float)((vd + dir) & 3);
+			int nextVd = (vd + dir) & 3;
+			if (nextVd == 0) nextVd = dir > 0 ? 1 : 3;
+			viewDistance = (float)nextVd;
 		}
 		if (option == &Option::GUI_SCALE)		guiScale = (guiScale + dir) & 3;
 		if (option == &Option::VIEW_BOBBING)	bobView = !bobView;
@@ -221,7 +221,6 @@ public:
 		if (option == &Option::LEFT_HANDED) isLeftHanded = !isLeftHanded;
 		if (option == &Option::USE_TOUCHSCREEN) useTouchScreen = !useTouchScreen;
 		if (option == &Option::USE_TOUCH_JOYPAD) isJoyTouchArea = !isJoyTouchArea;
-		if (option == &Option::DESTROY_VIBRATION) destroyVibration = !destroyVibration;
 		if (option == &Option::RENDER_DEBUG) renderDebug = !renderDebug;
 		if (option == &Option::CONTROL_SCHEME) xybaCamera = !xybaCamera;
 		if (option == &Option::AUTO_JUMP) autoJump = !autoJump;
@@ -282,8 +281,6 @@ public:
 			return useTouchScreen;
 		if (item == &Option::USE_TOUCH_JOYPAD)
 			return isJoyTouchArea;
-		if (item == &Option::DESTROY_VIBRATION)
-			return destroyVibration;
 		if (item == &Option::RENDER_DEBUG)
 			return renderDebug;
 		if (item == &Option::CONTROL_SCHEME)
