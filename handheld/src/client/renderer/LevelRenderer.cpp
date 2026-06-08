@@ -200,10 +200,12 @@ void LevelRenderer::allChanged()
 	yMaxChunk = yChunks;
 	zMaxChunk = zChunks;
 	dirtyChunks.clear();
+	_priorityDirtyChunks.clear();
 #ifdef __3DS__
 	dirtyChunks.reserve(chunksLength);
 	_renderChunks.reserve(chunksLength);
 	_nearChunks.reserve(64);
+	_priorityDirtyChunks.reserve(16);
 #endif
 	//renderableTileEntities.clear();
 
@@ -630,6 +632,30 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 {
 	bool slow = false;
 
+#ifdef __3DS__
+	int priorityDone = 0;
+	if (!_priorityDirtyChunks.empty()) {
+		DirtyChunkSorter prioritySorter(player);
+		if (_priorityDirtyChunks.size() > 1) {
+			std::sort(_priorityDirtyChunks.begin(), _priorityDirtyChunks.end(), prioritySorter);
+		}
+		const int priorityBudget = force ? (int)_priorityDirtyChunks.size() : (IsNew3DS() ? 2 : 1);
+		for (int i = (int)_priorityDirtyChunks.size() - 1; i >= 0 && priorityDone < priorityBudget; i--) {
+			Chunk* chunk = _priorityDirtyChunks[i];
+			if (chunk != NULL && chunk->isDirty()) {
+				chunk->rebuild();
+				chunk->setClean();
+				std::vector<Chunk*>::iterator it = std::find(dirtyChunks.begin(), dirtyChunks.end(), chunk);
+				if (it != dirtyChunks.end()) {
+					dirtyChunks.erase(it);
+				}
+				priorityDone++;
+			}
+			_priorityDirtyChunks.erase(_priorityDirtyChunks.begin() + i);
+		}
+	}
+#endif
+
 	if (slow) {
 		DirtyChunkSorter dirtySorter(player);
 		std::sort(dirtyChunks.begin(), dirtyChunks.end(), dirtySorter);
@@ -745,8 +771,11 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 			}
 			return s_lastFreezeState;
 		}();
-		const int ctrBudget = ctrFreeze ? 0 : MAX_NEAR_REBUILDS_PER_FRAME;
-		// Алиасы для совместимости с остальным кодом ниже.
+		int ctrBudget = ctrFreeze ? 0 : MAX_NEAR_REBUILDS_PER_FRAME;
+		if (priorityDone > 0 && ctrBudget > 0) {
+			ctrBudget -= priorityDone;
+			if (ctrBudget < 0) ctrBudget = 0;
+		}
 		const bool o3dsFreeze = ctrFreeze;
 		const int o3dsBudget = ctrBudget;
 #endif
@@ -963,7 +992,7 @@ void LevelRenderer::renderHitOutline( Player* player, const HitResult& h, int mo
 	}
 }
 
-void LevelRenderer::setDirty( int x0, int y0, int z0, int x1, int y1, int z1 )
+void LevelRenderer::setDirty( int x0, int y0, int z0, int x1, int y1, int z1, bool priority )
 {
 	int _x0 = Mth::intFloorDiv(x0, CHUNK_SIZE);
 	int _y0 = Mth::intFloorDiv(y0, CHUNK_SIZE);
@@ -972,12 +1001,15 @@ void LevelRenderer::setDirty( int x0, int y0, int z0, int x1, int y1, int z1 )
 	int _y1 = Mth::intFloorDiv(y1, CHUNK_SIZE);
 	int _z1 = Mth::intFloorDiv(z1, CHUNK_SIZE);
 
+	if (_y0 < 0) _y0 = 0;
+	if (_y1 >= yChunks) _y1 = yChunks - 1;
+	if (_y0 > _y1) return;
+
 	for (int x = _x0; x <= _x1; x++) {
 		int xx = x % xChunks;
 		if (xx < 0) xx += xChunks;
 		for (int y = _y0; y <= _y1; y++) {
-			int yy = y % yChunks;
-			if (yy < 0) yy += yChunks;
+			int yy = y;
 			for (int z = _z0; z <= _z1; z++) {
 				int zz = z % zChunks;
 				if (zz < 0) zz += zChunks;
@@ -988,6 +1020,11 @@ void LevelRenderer::setDirty( int x0, int y0, int z0, int x1, int y1, int z1 )
 					dirtyChunks.push_back(chunk);
 					chunk->setDirty();
 				}
+#ifdef __3DS__
+				if (priority && std::find(_priorityDirtyChunks.begin(), _priorityDirtyChunks.end(), chunk) == _priorityDirtyChunks.end()) {
+					_priorityDirtyChunks.push_back(chunk);
+				}
+#endif
 			}
 		}
 	}
@@ -995,7 +1032,7 @@ void LevelRenderer::setDirty( int x0, int y0, int z0, int x1, int y1, int z1 )
 
 void LevelRenderer::tileChanged( int x, int y, int z)
 {
-	setDirty(x - 1, y - 1, z - 1, x + 1, y + 1, z + 1);
+	setDirty(x - 1, y - 1, z - 1, x + 1, y + 1, z + 1, true);
 }
 
 
