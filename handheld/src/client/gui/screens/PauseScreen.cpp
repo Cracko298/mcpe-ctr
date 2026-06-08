@@ -165,6 +165,7 @@ void PauseScreen::buttonClicked(Button* button) {
 	if (button->id == bControlScheme->id) {
 		minecraft->options.toggle(&Options::Option::CONTROL_SCHEME, 1);
 		updateControlSchemeText();
+		minecraft->reloadOptions();
 	}
 
 	if (button->id == bServerVisibility->id) {

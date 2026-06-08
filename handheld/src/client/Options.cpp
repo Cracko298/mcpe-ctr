@@ -36,7 +36,7 @@ void Options::initDefaultValues() {
 	sound = 1.0f;
 	sensitivity = 0.5f;
 	invertYMouse = false;
-	viewDistance = 1;
+	viewDistance = 3;
 	bobView = true;
 	anaglyph3d = false;
 	limitFramerate = false;
@@ -224,7 +224,7 @@ void Options::set(const Options::Option* item, int value) {
 
 
 void Options::update() {
-	viewDistance = 1;
+	viewDistance = 3;
 	sensitivity = 0.5f;
 	StringVector optionStrings = optionsFile.getOptionStrings();
 	for (unsigned int i = 0; i < optionStrings.size(); i += 2) {

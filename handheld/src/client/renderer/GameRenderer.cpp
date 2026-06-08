@@ -112,11 +112,7 @@ void renderCursor(float x, float y, Minecraft* minecraft) {
 
 /*private*/
 void GameRenderer::setupCamera(float a, int eye) {
-#ifdef __3DS__
-	renderDistance = 32;
-#else
     renderDistance = (float) (16 * 16 >> (mc->options.viewDistance));
-#endif
 #if defined(ANDROID)
     if (mc->isPowerVR() && mc->options.viewDistance <= 2)
 		renderDistance *= 0.8f;
@@ -482,8 +478,18 @@ void GameRenderer::renderLevel(float a) {
 // 			glFogf(GL_FOG_START, renderDistance  * 0.6f);
 // 			glFogf(GL_FOG_END, renderDistance);
 //         }
+#ifdef __3DS__
+        // On 3DS, only enable fog when submerged (water/lava) to save GPU performance
+        if (mc->cameraTargetPlayer->isUnderLiquid(Material::water) || mc->cameraTargetPlayer->isUnderLiquid(Material::lava)) {
+            glEnable2(GL_FOG);
+            setupFog(1);
+        } else {
+            glDisable2(GL_FOG);
+        }
+#else
         glEnable2(GL_FOG);
         setupFog(1);
+#endif
 
         if (mc->options.ambientOcclusion) {
             glShadeModel2(GL_SMOOTH);
@@ -514,8 +520,15 @@ void GameRenderer::renderLevel(float a) {
 			prepareAndRenderClouds(levelRenderer, a);
 		}
 
+#ifdef __3DS__
+        if (mc->cameraTargetPlayer->isUnderLiquid(Material::water) || mc->cameraTargetPlayer->isUnderLiquid(Material::lava)) {
+            setupFog(0);
+            glEnable2(GL_FOG);
+        }
+#else
         setupFog(0);
         glEnable2(GL_FOG);
+#endif
 
 		mc->textures->loadAndBindTexture("terrain.png");
         glDisable2(GL_ALPHA_TEST);
@@ -569,7 +582,13 @@ void GameRenderer::renderLevel(float a) {
 
 		glDisable2(GL_BLEND);
         glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+#ifdef __3DS__
+        if (mc->cameraTargetPlayer->isUnderLiquid(Material::water) || mc->cameraTargetPlayer->isUnderLiquid(Material::lava)) {
+            setupFog(0);
+        }
+#else
         setupFog(0);
+#endif
         glEnable2(GL_BLEND);
         glDisable2(GL_CULL_FACE);
 		glDepthMask(GL_FALSE);
@@ -625,7 +644,13 @@ void GameRenderer::renderLevel(float a) {
 //        glEnable2(GL_FOG);
 ////        levelRenderer->renderClouds(a);
 //        glDisable2(GL_FOG);
+#ifdef __3DS__
+        if (mc->cameraTargetPlayer->isUnderLiquid(Material::water) || mc->cameraTargetPlayer->isUnderLiquid(Material::lava)) {
+            setupFog(1);
+        }
+#else
         setupFog(1);
+#endif
 
         if (zoom == 1) {
 			#ifdef __3DS__

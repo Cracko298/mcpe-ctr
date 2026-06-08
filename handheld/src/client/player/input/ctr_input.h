@@ -7,14 +7,19 @@
 #include "MouseBuildInput.h"
 #include "../../../platform/input/Controller.h"
 
+#ifdef __3DS__
+#include <3ds.h>
+#endif
+
 // На 3DS: 1 - левый стик (Circle Pad), 2 - правый стик (C-Stick на New 3DS или CPP)
 static const int moveStick = 1;
 static const int lookStick = 2;
 
 class N3dsTurnBuild : public UnifiedTurnBuild {
+	Minecraft* _mc;
 public:
 	N3dsTurnBuild(int turnMode, int width, int height, float maxMovementDelta, float sensitivity, IInputHolder* holder, Minecraft* minecraft) :
-		UnifiedTurnBuild(turnMode, width, height, maxMovementDelta, sensitivity, holder, minecraft) {}
+		UnifiedTurnBuild(turnMode, width, height, maxMovementDelta, sensitivity, holder, minecraft), _mc(minecraft) {}
 
 	TurnDelta getTurnDelta() override {
 		// Если игрок водит стилусом/пальцем по нижнему экрану (камера или UI)
@@ -51,15 +56,61 @@ public:
 			return UnifiedTurnBuild::tickBuild(p, bai);
 		}
 
+		bool isPhysicalButton = true;
+#ifdef __3DS__
+		if (hidKeysHeld() & KEY_TOUCH) {
+			isPhysicalButton = false;
+		}
+#endif
+
 		// Левая кнопка (обычно замаплена на ZR или R в Controller.cpp) - ломать блоки/атака
 		if (Mouse::getButtonState(MouseAction::ACTION_LEFT) != 0) {
-			if(totalMineTicks++ <= 0) {
-				*bai = BuildActionIntention(BuildActionIntention::BAI_FIRSTREMOVE | BuildActionIntention::BAI_ATTACK);
-				return true;
+			bool validAction = isPhysicalButton;
+			if (!isPhysicalButton) {
+				float mx = Mouse::getX();
+				float my = Mouse::getY();
+				float s = Gui::GuiScale;
+
+				if (_mc->options.xybaCamera) {
+					// XYBA mode: Enforce explicit hit-testing for the camera zone.
+					int screenWidth = _mc->gui.getBottomGuiWidth();
+					int mapX0 = screenWidth - 54;
+					float camLeft = 4 * s;
+					float camRight = mapX0 * s;
+					float camTop = 31 * s;
+					float camBottom = 236 * s;
+
+					if (mx >= camLeft && mx <= camRight && my >= camTop && my <= camBottom) {
+						int bx0, by0, bx1, by1;
+						_mc->gui.getControlButtonRect(1, bx0, by0, bx1, by1);
+						if (mx >= (bx0 - 4) * s && mx <= (bx1 + 4) * s && my >= (by0 - 4) * s && my <= (by1 + 4) * s) {
+							validAction = false;
+						} else {
+							_mc->gui.getControlButtonRect(2, bx0, by0, bx1, by1);
+							if (mx >= (bx0 - 4) * s && mx <= (bx1 + 4) * s && my >= (by0 - 4) * s && my <= (by1 + 4) * s) {
+								validAction = false;
+							} else {
+								validAction = true;
+							}
+						}
+					} else {
+						validAction = false; // Outside camera zone (minimap, inventory button, etc)
+					}
+				} else {
+					// Cam Zone mode: Taps to place/break blocks are verified here.
+					validAction = isInsideArea(mx, my);
+				}
 			}
-			else {
-				*bai = BuildActionIntention(BuildActionIntention::BAI_REMOVE | BuildActionIntention::BAI_ATTACK);
-				return true;
+
+			if (validAction) {
+				if(totalMineTicks++ <= 0) {
+					*bai = BuildActionIntention(BuildActionIntention::BAI_FIRSTREMOVE | BuildActionIntention::BAI_ATTACK);
+					return true;
+				}
+				else {
+					*bai = BuildActionIntention(BuildActionIntention::BAI_REMOVE | BuildActionIntention::BAI_ATTACK);
+					return true;
+				}
 			}
 		} else {
 			totalMineTicks = 0;
@@ -67,10 +118,47 @@ public:
 
 		// Правая кнопка (обычно ZL или L) - ставить блоки
 		if (Mouse::getButtonState(MouseAction::ACTION_RIGHT) != 0) {
+			bool validAction = isPhysicalButton;
+			if (!isPhysicalButton) {
+				float mx = Mouse::getX();
+				float my = Mouse::getY();
+				float s = Gui::GuiScale;
+
+				if (_mc->options.xybaCamera) {
+					int screenWidth = _mc->gui.getBottomGuiWidth();
+					int mapX0 = screenWidth - 54;
+					float camLeft = 4 * s;
+					float camRight = mapX0 * s;
+					float camTop = 31 * s;
+					float camBottom = 236 * s;
+
+					if (mx >= camLeft && mx <= camRight && my >= camTop && my <= camBottom) {
+						int bx0, by0, bx1, by1;
+						_mc->gui.getControlButtonRect(1, bx0, by0, bx1, by1);
+						if (mx >= (bx0 - 4) * s && mx <= (bx1 + 4) * s && my >= (by0 - 4) * s && my <= (by1 + 4) * s) {
+							validAction = false;
+						} else {
+							_mc->gui.getControlButtonRect(2, bx0, by0, bx1, by1);
+							if (mx >= (bx0 - 4) * s && mx <= (bx1 + 4) * s && my >= (by0 - 4) * s && my <= (by1 + 4) * s) {
+								validAction = false;
+							} else {
+								validAction = true;
+							}
+						}
+					} else {
+						validAction = false;
+					}
+				} else {
+					validAction = isInsideArea(mx, my);
+				}
+			}
+
+			if (validAction) {
 				if ((buildHoldTicks++ % buildDelayTicks) == 0) {
 					*bai = BuildActionIntention(BuildActionIntention::BAI_BUILD | BuildActionIntention::BAI_INTERACT);
 					return true;
 				}
+			}
  		} else {
 			buildHoldTicks = 0;
 		}
@@ -81,6 +169,7 @@ public:
 	void onConfigChanged(const Config& c) override {
 		UnifiedTurnBuild::onConfigChanged(c);
 	}
+
 private:
 	int totalMineTicks = 0;
 	int buildHoldTicks = 0;
@@ -161,7 +250,8 @@ public:
 		_camZoneExcludeArea1(0,0,0,0),
 		_camZoneExcludeArea2(0,0,0,0),
 		_camZoneExcludeArea3(0,0,0,0),
-		_camZoneExcludeArea4(0,0,0,0)
+		_camZoneExcludeArea4(0,0,0,0),
+		_screenArea(0,0,0,0)
 	{
 		onConfigChanged(createConfig(mc));
 	}
@@ -175,34 +265,60 @@ public:
 		_turnBuild.setSensitivity(c.options->isJoyTouchArea ? 2.8f : 1.8f);
 		((ITurnInput*)&_turnBuild)->onConfigChanged(c);
 
-		if (!c.options->xybaCamera) {
-			// In Cam Zone mode, restrict the touch area to only the Cam Zone square
-			int screenWidth  = _mc->gui.getBottomGuiWidth();
-			int screenHeight = _mc->gui.getBottomGuiHeight();
-			int mapX0 = screenWidth - 54;
-			int py0 = 31;
-			int px0 = 4;
-			int py1 = screenHeight - 4;
+		// In Cam Zone mode and XYBA mode, restrict the touch area to only the Cam Zone square
+		int screenWidth  = _mc->gui.getBottomGuiWidth();
+		int screenHeight = _mc->gui.getBottomGuiHeight();
+		int mapX0 = screenWidth - 54;
+		int py0 = 31;
+		int px0 = 4;
+		int py1 = screenHeight - 4;
+		float s = Gui::GuiScale; // Scale from GUI to physical pixels
 
-			_camZoneExcludeArea1 = RectangleArea(0, 0, px0, screenHeight); // Left
-			_camZoneExcludeArea2 = RectangleArea(mapX0, 0, screenWidth, screenHeight); // Right
-			_camZoneExcludeArea3 = RectangleArea(0, 0, screenWidth, py0); // Top
-			_camZoneExcludeArea4 = RectangleArea(0, py1, screenWidth, screenHeight); // Bottom
+		// Use the actual physical screen dimensions (320x240) to prevent 
+		// small crevices caused by floating point / integer scaling mismatches.
+		_camZoneExcludeArea1 = RectangleArea(0, 0, px0 * s, 240); // Left
+		_camZoneExcludeArea2 = RectangleArea(mapX0 * s, 0, 320, 240); // Right
+		_camZoneExcludeArea3 = RectangleArea(0, 0, 320, py0 * s); // Top
+		_camZoneExcludeArea4 = RectangleArea(0, py1 * s, 320, 240); // Bottom
 
-			_turnBuild.addExcludeArea(&_camZoneExcludeArea1);
-			_turnBuild.addExcludeArea(&_camZoneExcludeArea2);
-			_turnBuild.addExcludeArea(&_camZoneExcludeArea3);
-			_turnBuild.addExcludeArea(&_camZoneExcludeArea4);
+		_screenArea = RectangleArea(0, 0, 320, 240);
+		
+		// Reset the state entirely to overwrite any inherited behaviors from UnifiedTurnBuild
+		_turnBuild.setIncludeArea(&_screenArea);
+		_turnBuild.addExcludeArea(&_camZoneExcludeArea1);
+		_turnBuild.addExcludeArea(&_camZoneExcludeArea2);
+		_turnBuild.addExcludeArea(&_camZoneExcludeArea3);
+		_turnBuild.addExcludeArea(&_camZoneExcludeArea4);
+
+		if (c.options->xybaCamera) {
+			// XYBA mode: Also explicitly exclude the Jump and Inventory buttons.
+			int bx0, by0, bx1, by1;
+			_mc->gui.getControlButtonRect(1, bx0, by0, bx1, by1);
+			_btn1Area = RectangleArea((bx0 - 4) * s, (by0 - 4) * s, (bx1 + 4) * s, (by1 + 4) * s);
+			_turnBuild.addExcludeArea(&_btn1Area);
+
+			_mc->gui.getControlButtonRect(2, bx0, by0, bx1, by1);
+			_btn2Area = RectangleArea((bx0 - 4) * s, (by0 - 4) * s, (bx1 + 4) * s, (by1 + 4) * s);
+			_turnBuild.addExcludeArea(&_btn2Area);
 		} else {
-			// In XYBA mode, COMPLETELY disable camera turning via touch.
-			// (Block breaking is disabled in Gui::isInside).
-			_camZoneExcludeArea1 = RectangleArea(0, 0, _mc->gui.getBottomGuiWidth(), _mc->gui.getBottomGuiHeight());
-			_turnBuild.addExcludeArea(&_camZoneExcludeArea1);
+			// Cam Zone mode: Only exclude the inventory button
+			_turnBuild.addExcludeArea(&_turnBuild.inventoryArea);
 		}
 	}
 
 	bool allowPicking() override {
-		// Проверка тачскрина
+		if (_mc->options.isJoyTouchArea || _mc->options.xybaCamera) {
+			// Crosshair mode (Split Controls ON) or XYBA Camera Mode.
+			// Picking MUST ALWAYS happen at the center of the top screen (crosshair),
+			// regardless of touch input or location.
+			mousex = _mc->width / 2;
+			mousey = _mc->height / 2;
+			return true;
+		}
+
+		// Split Controls OFF (Cam Zone mode):
+		// Picking happens where the user is touching on the bottom screen, 
+		// but ONLY if the touch is inside the valid camera zone square.
 		int pointer = Multitouch::getFirstActivePointerIdEx();
 
 		if(pointer >= 0) { 
@@ -245,6 +361,7 @@ private:
 	RectangleArea _camZoneExcludeArea2;
 	RectangleArea _camZoneExcludeArea3;
 	RectangleArea _camZoneExcludeArea4;
+	RectangleArea _screenArea;
 };
 
 #endif /*NET_MINECRAFT_CLIENT_PLAYER__N3dsInput_H__*/

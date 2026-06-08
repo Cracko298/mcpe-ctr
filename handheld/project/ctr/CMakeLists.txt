@@ -413,7 +413,7 @@ ctr_create_3dsx(${PROJECT_NAME}
 )
 
 set(APP_TITLE "Minecraft PE")
-set(APP_DESCRIPTION "Minecraft Pocket Edition 0.6.1")
+set(APP_DESCRIPTION "Minecraft Pocket Edition")
 set(APP_AUTHOR "Saku")
 set(APP_PRODUCT_CODE "CTR-P-MCPE")
 set(APP_UNIQUE_ID "0xEFAD0")

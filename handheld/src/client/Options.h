@@ -209,9 +209,7 @@ public:
 		if (option == &Option::INVERT_MOUSE)	invertYMouse = !invertYMouse;
 		if (option == &Option::RENDER_DISTANCE) {
 			int vd = (int)(viewDistance + 0.5f);
-			int nextVd = (vd + dir) & 3;
-			if (nextVd == 0) nextVd = dir > 0 ? 1 : 3;
-			viewDistance = (float)nextVd;
+			viewDistance = (float)((vd + dir) & 3);
 		}
 		if (option == &Option::GUI_SCALE)		guiScale = (guiScale + dir) & 3;
 		if (option == &Option::VIEW_BOBBING)	bobView = !bobView;

@@ -881,11 +881,8 @@ bool Gui::isInside(int x, int y) {
 		return true; 
 	}
 	
-	// Если включена схема XYBA, центральная часть Cam Zone ДОЛЖНА использоваться
-	// для вращения камеры и ломания блоков. Но кнопки Jump/Inv должны поглощать тач.
-	if (minecraft->options.xybaCamera) {
-		return true; // XYBA mode completely disables block breaking on the touch screen.
-	}
+	// Buttons Jump/Inv absorb touch via controlButtonAt in XYBA mode,
+	// but the rest of the cam zone should NOT be consumed.
 #endif
 	return false;
 }
