@@ -241,7 +241,9 @@ void Tesselator::color( int c, int alpha )
 
 void Tesselator::vertexUV( float x, float y, float z, float u, float v )
 {
-	tex(u, v);
+	hasTexture = true;
+	this->u = u;
+	this->v = v;
 	vertex(x, y, z);
 }
 
@@ -273,30 +275,11 @@ void Tesselator::vertex( float x, float y, float z )
 	count++;
 
 	if (mode == GL_QUADS && (count & 3) == 0) {
-		for (int i = 0; i < 2; i++) {
-
-			const int offs = 3 - i;
-			VERTEX& src = _varray[p - offs];
-			VERTEX& dst = _varray[p];
-
-			if (hasTexture) {
-				dst.u = src.u;
-				dst.v = src.v;
-			}
-			if (hasColor) {
-				dst.color = src.color;
-			}
-			//if (hasNormal) {
-			//	dst.normal = src.normal;
-			//}
-
-			dst.x = src.x;
-			dst.y = src.y;
-			dst.z = src.z;
-
-			++vertices;
-			++p;
-		}
+		int q = p;
+		_varray[q] = _varray[q - 3];
+		_varray[q + 1] = _varray[q - 1];
+		p += 2;
+		vertices += 2;
 	}
 
 	VERTEX& vertex = _varray[p];

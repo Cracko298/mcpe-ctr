@@ -63,7 +63,7 @@ public:
 
 	void tick();
 	bool updateDirtyChunks(Mob* player, bool force);
-	void setDirty(int x0, int y0, int z0, int x1, int y1, int z1);
+	void setDirty(int x0, int y0, int z0, int x1, int y1, int z1, bool priority = false);
     void tileChanged(int x, int y, int z);
     void setTilesDirty(int x0, int y0, int z0, int x1, int y1, int z1);
 	void cull(Culler* culler, float a);
@@ -95,8 +95,8 @@ private:
     int renderedEntities;
     int culledEntities;
 
-	std::vector<Chunk*> _renderChunks;
 	std::vector<Chunk*> _nearChunks;
+	std::vector<Chunk*> _priorityDirtyChunks;
 
     int cullStep;
 	//static const int renderListsLength = 4;

@@ -5,6 +5,7 @@
 #include "../../world/entity/Entity.h"
 #include "../../world/level/tile/Tile.h"
 #include "../../world/level/Region.h"
+#include "../../world/level/Level.h"
 #include "../../world/level/chunk/LevelChunk.h"
 #include "../../util/Mth.h"
 //#include "../../platform/time.h"
@@ -93,46 +94,31 @@ void Chunk::rebuild()
 	TileRenderer tileRenderer(&region);
 
 #ifdef __3DS__
-	// SINGLE-PASS rebuild для 3DS.
-	//
-	// Старая схема делала до 3 проходов по всему чанку (16³=4096 ячеек,
-	// region.getTile + Tile::tiles[] lookup на каждой) — по проходу на
-	// каждый renderLayer (terrain/alpha/water). На чанках с водой+листьями
-	// это ~12K getTile-вызовов на ребилд, и каждый ребилд на Old 3DS
-	// ловил пики до 25ms (см. LevelRenderer.h).
-	//
-	// Новая схема: один проход. Бакетизируем непустые тайлы по renderLayer
-	// в три SOA-массива (positions + tile ptrs). Затем для каждого
-	// присутствующего слоя один проход по его собственному списку — без
-	// перепроверок region.getTile() и без обхода пустых ячеек.
-	//
-	// Память: фикс-массивы static (BSS), 16³ × 3 слоя — но в худшем случае
-	// сумма всех слоёв = 16³, поэтому делим один пул на 4096 элементов.
-	// Хранение: uint16_t packedPos = (lx<<8) | (ly<<4) | lz (xs,ys,zs<=16),
-	// плюс Tile* (4 байта) = 6 байт на тайл × 4096 = 24 КБ static.
-	//
-	// Гарантия: layers строятся в порядке 0..2, как и в старой схеме —
-	// важно для тесселяции (внутри tesselateInWorld есть взаимодействия с
-	// уже выставленным GL-стейтом для текущего слоя).
 	static uint16_t s_packed[NumLayers][4096];
 	static Tile*    s_tilePtr[NumLayers][4096];
 	int             layerCount[NumLayers] = {0, 0, 0};
 
-	for (int yy = y0; yy < y1; yy++) {
+	for (int xx = x0; xx < x1; xx++) {
+		int lx = xx - x0;
+		int xLocal = xx & 15;
 		for (int zz = z0; zz < z1; zz++) {
-			for (int xx = x0; xx < x1; xx++) {
-				int tileId = region.getTile(xx, yy, zz);
-				if (tileId <= 0) continue;
+			LevelChunk* lc = level->getChunk(xx >> 4, zz >> 4);
+			if (lc == NULL) continue;
+			unsigned char* blocks = lc->getBlockData();
+			if (blocks == NULL) continue;
+
+			int lz = zz - z0;
+			int base = (xLocal << 11) | ((zz & 15) << 7) | y0;
+			for (int yy = y0; yy < y1; yy++) {
+				int tileId = blocks[base + (yy - y0)] & 0xff;
+				if (tileId == 0) continue;
 				Tile* tile = Tile::tiles[tileId];
 				if (tile == NULL) continue;
 				int rl = tile->getRenderLayer();
 				if ((unsigned)rl >= (unsigned)NumLayers) continue;
 				int n = layerCount[rl];
-				if (n >= 4096) continue; // safety; не должно достигаться
-				int lx = xx - x0;
-				int ly = yy - y0;
-				int lz = zz - z0;
-				s_packed[rl][n]  = (uint16_t)((lx << 8) | (ly << 4) | lz);
+				if (n >= 4096) continue;
+				s_packed[rl][n] = (uint16_t)((lx << 8) | ((yy - y0) << 4) | lz);
 				s_tilePtr[rl][n] = tile;
 				layerCount[rl] = n + 1;
 			}
