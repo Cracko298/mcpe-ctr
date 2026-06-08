@@ -185,10 +185,22 @@ public:
 		sprintTapTime = 0;
 		sprintForwardHeld = false;
 		stickSprinting = false;
+		sneakToggleState = false;
+		wasSneakDown = false;
 	}
 
 	void tick(Player* player) override {
 		super::tick(player);
+		
+		bool isSneakDown = keys[KEY_SNEAK];
+		if (isSneakDown && !wasSneakDown) {
+			sneakToggleState = !sneakToggleState;
+		}
+		wasSneakDown = isSneakDown;
+
+		sneaking = sneakToggleState;
+		wantDown = sneaking;
+
 		// Левый Circle Pad
 		float stickX = Controller::getTransformedX(moveStick, 0.2f, 1.25f, true);
 		float stickY = Controller::getTransformedY(moveStick, 0.2f, 1.25f, true);
@@ -207,6 +219,8 @@ public:
 		sprintTapTime = 0;
 		sprintForwardHeld = false;
 		stickSprinting = false;
+		wasSneakDown = false;
+		sneakToggleState = false;
 	}
 
 private:
@@ -234,6 +248,8 @@ private:
 	int sprintTapTime;
 	bool sprintForwardHeld;
 	bool stickSprinting;
+	bool sneakToggleState;
+	bool wasSneakDown;
 };
 
 class N3dsInputHolder : public IInputHolder {

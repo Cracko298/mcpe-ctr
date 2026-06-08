@@ -769,7 +769,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 			//     границы чанка (resortChunks делает 8+ чанков compiled=false
 			//     одной пачкой) кадр разъедет на 50+мс.
 			int updateBudget = force ? (int)nearChunks.size() : o3dsBudget;
-			int firstBuildBudget = force ? (int)nearChunks.size() : 2;
+			int firstBuildBudget = force ? (int)nearChunks.size() : (IsNew3DS() ? 2 : 1);
 #else
 			int updateBudget = force ? (int)nearChunks.size() : MAX_NEAR_REBUILDS_PER_FRAME;
 			int firstBuildBudget = updateBudget;
