@@ -136,7 +136,13 @@ void FurnaceScreen::setupPositions() {
 	btnClose.y = 0;
 
 	// Inventory pane
-	const int maxWidth = width/2 - Bx - Bx;
+#ifdef __3DS__
+	const int cw = minecraft->gui.getBottomGuiWidth();
+	const int maxWidth = cw/2;
+#else
+	const int cw = width;
+	const int maxWidth = cw/2 - Bx - Bx;
+#endif
 	const int InventoryColumns = maxWidth / ItemSize;
 	const int realWidth = InventoryColumns * ItemSize;
 	const int paneWidth = realWidth + Bx + Bx;
@@ -152,7 +158,7 @@ void FurnaceScreen::setupPositions() {
 	// Right - Slots, description etc
 	{
 	int cx = (inventoryPaneRect.x + inventoryPaneRect.w);
-	int rightWidth = width - cx;
+	int rightWidth = cw - cx;
 
 	btnIngredient.width = btnFuel.width = btnResult.width = (int)guiSlot->getWidth();
 	btnIngredient.height = btnFuel.height = btnResult.height = (int)guiSlot->getHeight();

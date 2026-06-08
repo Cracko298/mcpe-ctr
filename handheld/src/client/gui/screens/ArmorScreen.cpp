@@ -115,7 +115,13 @@ void ArmorScreen::setupPositions() {
 	btnClose.y = 0;
 
 	// Inventory pane
-	const int maxWidth = (int)(width/1.8f) - Bx - Bx;
+#ifdef __3DS__
+	const int cw = minecraft->gui.getBottomGuiWidth();
+	const int maxWidth = (int)(cw/2.0f);
+#else
+	const int cw = width;
+	const int maxWidth = (int)(cw/1.8f) - Bx - Bx;
+#endif
 	const int InventoryColumns = maxWidth / ItemSize;
 	const int realWidth = InventoryColumns * ItemSize;
 	const int paneWidth = realWidth + Bx + Bx;
@@ -138,7 +144,7 @@ void ArmorScreen::setupPositions() {
 
 	guiPlayerBgRect.y = inventoryPaneRect.y;
 	int xx = armorButtons[0]->x + armorButtons[0]->width;
-	int xw = width - xx;
+	int xw = cw - xx;
 	guiPlayerBgRect.x = xx + xw / 10;
 	guiPlayerBgRect.w = xw - (xw / 10) * 2;
 	guiPlayerBgRect.h = inventoryPaneRect.h;

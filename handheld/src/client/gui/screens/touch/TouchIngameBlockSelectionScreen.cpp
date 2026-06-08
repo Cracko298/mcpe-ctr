@@ -76,15 +76,17 @@ void IngameBlockSelectionScreen::init()
 {
 	Inventory* inventory = minecraft->player->inventory;
 
-	//const int itemWidth = 2 * BorderPixels + 
-
 #ifdef __3DS__
-	int cw = 320;
+	int cw = minecraft->gui.getBottomGuiWidth();
 #else
 	int cw = width;
 #endif
-
+#ifdef __3DS__
+	int maxWidth = cw; // Maximize space to fit 8 columns
+#else
 	int maxWidth = cw - Bx - Bx;
+#endif
+
 	InventoryColumns = maxWidth / ItemSize;
 	const int realWidth = InventoryColumns * ItemSize;
 	const int realBx = (cw - realWidth) / 2;
@@ -172,7 +174,7 @@ void IngameBlockSelectionScreen::removed()
 int IngameBlockSelectionScreen::getSlotPosX(int slotX) {
     // @todo: Number of columns
 #ifdef __3DS__
-	int cw = 320;
+	int cw = minecraft->gui.getBottomGuiWidth();
 #else
 	int cw = width;
 #endif

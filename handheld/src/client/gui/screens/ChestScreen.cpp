@@ -425,11 +425,17 @@ void ChestScreen::setupPane()
 		chestItems.push_back(item);
 	}
 
-	int maxWidth = width/2 - Bx/2;//- Bx - Bx/*- Bx*/;
+#ifdef __3DS__
+	int cw = minecraft->gui.getBottomGuiWidth();
+	int maxWidth = cw/2;
+#else
+	int cw = width;
+	int maxWidth = cw/2 - Bx/2;//- Bx - Bx/*- Bx*/;
+#endif
 	int InventoryColumns = maxWidth / ItemSize;
 	const int realWidth = InventoryColumns * ItemSize;
 	int paneWidth = realWidth;// + Bx + Bx;
-	const int realBx = (width/2 - realWidth) / 2;
+	const int realBx = (cw/2 - realWidth) / 2;
     
 	IntRectangle rect(realBx,
 #ifdef __APPLE__
@@ -437,15 +443,24 @@ void ChestScreen::setupPane()
 #else
 		24 + By, realWidth, height-By-By-24);
 #endif
-	// IntRectangle(0, 0, 100, 100)
+
+	IntRectangle rect2(cw/2 + realBx,
+#ifdef __APPLE__
+		24 + By - ((width==240)?1:0), realWidth, ((width==240)?1:0) + height-By-By-24);
+#else
+		24 + By, realWidth, height-By-By-24);
+#endif
+	
+	panesBbox = rect;
+	panesBbox.w += (rect2.x + rect2.w - panesBbox.x);
+
 	if (inventoryPane) delete inventoryPane;
 	inventoryPane = new Touch::InventoryPane(this, minecraft, rect, paneWidth, BorderPixels, minecraft->player->inventory->getContainerSize() - Inventory::MAX_SELECTION_SIZE, ItemSize, (int)BorderPixels);
 	inventoryPane->fillMarginX = 0;
 	inventoryPane->fillMarginY = 0;
 	guiPaneFrame->setSize((float)rect.w + 2, (float)rect.h + 2);
 
-	panesBbox = rect;
-	rect.x += width/2;// - rect.w - Bx;
+	rect.x += cw/2;// - rect.w - Bx;
 	panesBbox.w += (rect.x - panesBbox.x);
 
 	if (chestPane) delete chestPane;
