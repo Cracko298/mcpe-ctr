@@ -12,11 +12,24 @@ A source port of Minecraft Pocket Edition Alpha v0.6.1 targeting the Nintendo 3D
 
 [![Build 3DS MCPE](../../actions/workflows/build.yml/badge.svg)](../../actions/workflows/build.yml)
 
-## Building
+## Installation
 
-Make sure you have the latest [devkitPro](https://devkitpro.org/) toolchain installed (devkitARM).
+1. Download the `.cia` file from the latest release (or from the latest CI run).
+2. Install it using your preferred CIA installer.
+3. Copy the `minecraftpe` folder from the `minecraftpe.rar` to: `sdmc:/3ds/`
+4. Launch Minecraft PE from your Home Menu.
+
+## Building via CI / GitHub Actions
+
+Pushing to the `0.6.1` branch (or triggering manually) will run the full build via GitHub Actions. A compiled `.cia` artifact is uploaded automatically.
+
+You can also grab the latest release from the **Releases** tab. Once a major version is released that requires updated assets, it will be published there with the matching assets included.
+
+## Local Building
 
 ### Dependencies
+
+Make sure you have the latest [devkitPro](https://devkitpro.org/) toolchain installed (devkitARM).
 
 The following libraries are cloned and built automatically by the CI workflow, but for local builds you need to set them up manually:
 
@@ -25,7 +38,7 @@ The following libraries are cloned and built automatically by the CI workflow, b
 | **NovaGL** | [efimandreev0/NovaGL](https://github.com/efimandreev0/NovaGL) | OpenGL ES 1.1 translator for Nintendo 3DS |
 | **SDL-N3DS_NovaGL** | [efimandreev0/SDL-N3DS_NovaGL](https://github.com/efimandreev0/SDL-N3DS_NovaGL) | Custom SDL2 fork for 3DS with NovaGL rendering backend |
 
-### Local Build
+### Starting the local building process
 
 ```bash
 # 1. Clone and build SDL-N3DS_NovaGL
@@ -51,12 +64,6 @@ make -j$(nproc)
 ```
 
 If you want to build the demo, add the `-DDEMO=on` flag to the cmake line. (However this hasn't been tested yet)
-
-### CI / GitHub Actions
-
-Pushing to the `0.6.1` branch (or triggering manually) will run the full build via GitHub Actions. A compiled `.cia` artifact is uploaded automatically.
-
-You can also grab the latest release from the **Releases** tab. Once a major version is released that requires updated assets, it will be published there with the matching assets included.
 
 ## Credits
 - **Olebeck** — graphics, sound, networking
