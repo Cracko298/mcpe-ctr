@@ -95,7 +95,6 @@ private:
     int renderedEntities;
     int culledEntities;
 
-	std::vector<Chunk*> _renderChunks;
 	std::vector<Chunk*> _nearChunks;
 	std::vector<Chunk*> _priorityDirtyChunks;
 

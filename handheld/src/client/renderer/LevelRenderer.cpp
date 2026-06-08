@@ -203,7 +203,6 @@ void LevelRenderer::allChanged()
 	_priorityDirtyChunks.clear();
 #ifdef __3DS__
 	dirtyChunks.reserve(chunksLength);
-	_renderChunks.reserve(chunksLength);
 	_nearChunks.reserve(64);
 	_priorityDirtyChunks.reserve(16);
 #endif
@@ -567,12 +566,15 @@ void LevelRenderer::render(const AABB& b) const
 
 int LevelRenderer::renderChunks( int from, int to, int layer, float alpha )
 {
-	_renderChunks.clear();
+	Mob* player = mc->cameraTargetPlayer;
+	float xOff = player->xOld + (player->x - player->xOld) * alpha;
+	float yOff = player->yOld + (player->y - player->yOld) * alpha;
+	float zOff = player->zOld + (player->z - player->zOld) * alpha;
+
+	renderList.clear();
+	renderList.init(xOff, yOff, zOff);
+
 	int count = 0;
-	// Hoist the two hot branches out of the inner loop: stats are only tracked
-	// for layer 0, and occlusion culling only contributes when enabled. Also
-	// avoid the virtual-ish getList() call by inlining its condition (chunk
-	// visible + non-empty layer).
 	if (layer == 0) {
 		for (int i = from; i < to; i++) {
 			Chunk* c = sortedChunks[i];
@@ -581,7 +583,12 @@ int LevelRenderer::renderChunks( int from, int to, int layer, float alpha )
 			if (!c->visible) { offscreenChunks++; continue; }
 			if (occlusionCheck && !c->occlusion_visible) { occludedChunks++; continue; }
 			renderedChunks++;
-			_renderChunks.push_back(c);
+#ifdef USE_VBO
+			renderList.addR(c->getRenderChunk(0));
+#else
+			renderList.add(c->getList(0));
+#endif
+			renderList.next();
 			count++;
 		}
 	} else {
@@ -589,28 +596,14 @@ int LevelRenderer::renderChunks( int from, int to, int layer, float alpha )
 			Chunk* c = sortedChunks[i];
 			if (c->empty[layer] || !c->visible) continue;
 			if (occlusionCheck && !c->occlusion_visible) continue;
-			_renderChunks.push_back(c);
+#ifdef USE_VBO
+			renderList.addR(c->getRenderChunk(layer));
+#else
+			renderList.add(c->getList(layer));
+#endif
+			renderList.next();
 			count++;
 		}
-	}
-
-	Mob* player = mc->cameraTargetPlayer;
-	float xOff = player->xOld + (player->x - player->xOld) * alpha;
-	float yOff = player->yOld + (player->y - player->yOld) * alpha;
-	float zOff = player->zOld + (player->z - player->zOld) * alpha;
-
-	//int lists = 0;
-	renderList.clear();
-	renderList.init(xOff, yOff, zOff);
-
-	for (unsigned int i = 0; i < _renderChunks.size(); ++i) {
-		Chunk* chunk = _renderChunks[i];
-		#ifdef USE_VBO
-			renderList.addR(chunk->getRenderChunk(layer));
-		#else
-			renderList.add(chunk->getList(layer));
-		#endif
-		renderList.next();
 	}
 
 	renderSameAsLast(layer, alpha);
