@@ -193,13 +193,17 @@ public:
 		super::tick(player);
 		
 		bool isSneakDown = keys[KEY_SNEAK];
-		if (isSneakDown && !wasSneakDown) {
+		bool isFlying = player && player->abilities.flying;
+
+		if (isFlying) {
+			sneakToggleState = false;
+		} else if (isSneakDown && !wasSneakDown) {
 			sneakToggleState = !sneakToggleState;
 		}
 		wasSneakDown = isSneakDown;
 
 		sneaking = sneakToggleState;
-		wantDown = sneaking;
+		wantDown = isSneakDown;
 
 		// Левый Circle Pad
 		float stickX = Controller::getTransformedX(moveStick, 0.2f, 1.25f, true);
