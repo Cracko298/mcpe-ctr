@@ -3,6 +3,7 @@
 
 #include <map>
 #include <string>
+#include <stdio.h>
 #include "../../../raknet/BitStream.h"
 
 typedef std::map<int, bool> FreeSectorMap;
@@ -19,11 +20,13 @@ public:
 private:
 	bool write(int sector, RakNet::BitStream& chunkData);
 	void close();
+	void setBuffer();
 
 	FILE* file;
 	std::string	filename;
 	int* offsets;
 	int* emptyChunk;
+	char* ioBuffer;
 	FreeSectorMap sectorFree;
 };
 

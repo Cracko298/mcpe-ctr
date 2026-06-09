@@ -51,6 +51,8 @@ public:
 		static const Option RENDER_DEBUG;
 		static const Option CONTROL_SCHEME;
 		static const Option AUTO_JUMP;
+		static const Option AUTOSAVE;
+		static const Option PROCEDURAL_AUTOSAVE;
 
 		/*
 		 s tatic Option* getItem(int id) {    *
@@ -164,8 +166,8 @@ public:
 	bool isJoyTouchArea;
 	bool useTouchScreen;
 	bool autoJump;
-	// Схема управления 3DS: false — стилус-камера (Cam Zone, по умолчанию),
-	// true — XYBA крутят камеру, а прыжок/инвентарь живут тач-кнопками снизу.
+	bool autosave;
+	bool proceduralAutosave;
 	bool xybaCamera;
 	float pixelsPerMillimeter;
 	Options(Minecraft* minecraft, const std::string& workingDirectory)
@@ -222,6 +224,8 @@ public:
 		if (option == &Option::RENDER_DEBUG) renderDebug = !renderDebug;
 		if (option == &Option::CONTROL_SCHEME) xybaCamera = !xybaCamera;
 		if (option == &Option::AUTO_JUMP) autoJump = !autoJump;
+		if (option == &Option::AUTOSAVE) autosave = !autosave;
+		if (option == &Option::PROCEDURAL_AUTOSAVE) proceduralAutosave = !proceduralAutosave;
 		if (option == &Option::ANAGLYPH) {
 			anaglyph3d = !anaglyph3d;
 			//minecraft->textures.reloadAll();
@@ -285,6 +289,10 @@ public:
 			return xybaCamera;
 		if (item == &Option::AUTO_JUMP)
 			return autoJump;
+		if (item == &Option::AUTOSAVE)
+			return autosave;
+		if (item == &Option::PROCEDURAL_AUTOSAVE)
+			return proceduralAutosave;
 		return false;
 	}
 
