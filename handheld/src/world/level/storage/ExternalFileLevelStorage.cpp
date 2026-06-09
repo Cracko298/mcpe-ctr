@@ -17,6 +17,34 @@
 static const int ChunkVersion_Light = 1;
 static const int ChunkVersion_Entity = 2;
 
+static bool g_externalFileAutosaveEnabled = true;
+static bool g_externalFileProceduralAutosaveEnabled = true;
+static const RakNet::TimeMS AutosaveIntervalMs = 20 * 60 * 1000;
+static const RakNet::TimeMS AutosaveChunkWriteSpacingMs = 1000;
+static const RakNet::TimeMS ProceduralChunkWriteSpacingMs = 15000;
+static const RakNet::TimeMS ProceduralChunkMinAgeMs = 30000;
+static const int AutosaveScanPerTick = 4;
+
+void setExternalFileAutosaveEnabled(bool enabled)
+{
+	g_externalFileAutosaveEnabled = enabled;
+}
+
+bool isExternalFileAutosaveEnabled()
+{
+	return g_externalFileAutosaveEnabled;
+}
+
+void setExternalFileProceduralAutosaveEnabled(bool enabled)
+{
+	g_externalFileProceduralAutosaveEnabled = enabled;
+}
+
+bool isExternalFileProceduralAutosaveEnabled()
+{
+	return g_externalFileProceduralAutosaveEnabled;
+}
+
 const char* const fnLevelDatOld = "level.dat_old";
 const char* const fnLevelDatNew = "level.dat_new";
 const char* const fnLevelDat    = "level.dat";
@@ -83,7 +111,11 @@ ExternalFileLevelStorage::ExternalFileLevelStorage(const std::string& levelId, c
 	tickCount(0),
 	lastSavedEntitiesTick(-999999),
 	level(NULL),
-	loadedStorageVersion(SharedConstants::StorageVersion)
+	loadedStorageVersion(SharedConstants::StorageVersion),
+	autosaveScanCursor(0),
+	lastChunkSaveMs(0),
+	lastAutosaveMs(0),
+	autosaveFlushActive(false)
 {
 	createFolderIfNotExists(levelPath.c_str());
 
@@ -286,48 +318,108 @@ bool ExternalFileLevelStorage::readPlayerData(const std::string& filename, Level
 	return true;
 }
 
+void ExternalFileLevelStorage::trackUnsavedChunk(LevelChunk* chunk, int pos, RakNet::TimeMS now)
+{
+	UnsavedChunkList::iterator prev = unsavedChunkList.begin();
+	for ( ; prev != unsavedChunkList.end(); ++prev)
+	{
+		if ((*prev).pos == pos)
+		{
+			(*prev).addedToList = now;
+			(*prev).chunk = chunk;
+			chunk->unsaved = false;
+			return;
+		}
+	}
+
+	UnsavedLevelChunk unsaved;
+	unsaved.pos = pos;
+	unsaved.addedToList = now;
+	unsaved.chunk = chunk;
+	unsavedChunkList.push_back(unsaved);
+	chunk->unsaved = false;
+}
+
+void ExternalFileLevelStorage::scanUnsavedChunks(int maxCount, RakNet::TimeMS now)
+{
+	if (!level) return;
+	const int total = CHUNK_CACHE_WIDTH * CHUNK_CACHE_WIDTH;
+	for (int i = 0; i < maxCount; ++i)
+	{
+		int pos = autosaveScanCursor++;
+		if (autosaveScanCursor >= total) autosaveScanCursor = 0;
+		int x = pos % CHUNK_CACHE_WIDTH;
+		int z = pos / CHUNK_CACHE_WIDTH;
+		if (!level->hasChunk(x, z))
+			continue;
+		LevelChunk* chunk = level->getChunk(x, z);
+		if (chunk && chunk->unsaved)
+			trackUnsavedChunk(chunk, pos, now);
+	}
+}
+
 void ExternalFileLevelStorage::tick()
 {
 	tickCount++;
-	if ((tickCount % 50) == 0 && level)
-	{
-		// look for chunks that needs to be saved
-		for (int z = 0; z < CHUNK_CACHE_WIDTH; z++)
-		{
-			for (int x = 0; x < CHUNK_CACHE_WIDTH; x++)
-			{
-				LevelChunk* chunk = level->getChunk(x, z);
-				if (chunk && chunk->unsaved)
-				{
-					int pos = x + z * CHUNK_CACHE_WIDTH;
-					UnsavedChunkList::iterator prev = unsavedChunkList.begin();
-					for ( ; prev != unsavedChunkList.end(); ++prev)
-					{
-						if ((*prev).pos == pos)
-						{
-							// the chunk has been modified again, so update its time
-							(*prev).addedToList = RakNet::GetTimeMS();
-							break;
-						}
-					}
-					if (prev == unsavedChunkList.end())
-					{
-						UnsavedLevelChunk unsaved;
-						unsaved.pos = pos;
-						unsaved.addedToList = RakNet::GetTimeMS();
-						unsaved.chunk = chunk;
-						unsavedChunkList.push_back(unsaved);
-					}
-					chunk->unsaved = false; // not actually saved, but in our working list at least
-				}
-			}
-		}
+	if (!level) return;
 
-        savePendingUnsavedChunks(2);
+	RakNet::TimeMS now = RakNet::GetTimeMS();
+
+#ifdef __3DS__
+	if (lastAutosaveMs == 0)
+		lastAutosaveMs = now;
+	if (!g_externalFileAutosaveEnabled)
+	{
+		autosaveFlushActive = false;
+		lastAutosaveMs = now;
+		return;
 	}
-	if (tickCount - lastSavedEntitiesTick > (60 * SharedConstants::TicksPerSecond)) {
+
+	scanUnsavedChunks(AutosaveScanPerTick, now);
+
+	if (g_externalFileProceduralAutosaveEnabled)
+	{
+		autosaveFlushActive = false;
+		if (now - lastChunkSaveMs >= ProceduralChunkWriteSpacingMs)
+		{
+			lastChunkSaveMs = now;
+			savePendingUnsavedChunks(1, ProceduralChunkMinAgeMs);
+		}
+		if (now - lastAutosaveMs >= AutosaveIntervalMs)
+		{
+			scanUnsavedChunks(CHUNK_CACHE_WIDTH * CHUNK_CACHE_WIDTH, now);
+			saveEntities(level, NULL);
+			level->saveLevelData();
+			lastAutosaveMs = now;
+		}
+		return;
+	}
+
+	if (!autosaveFlushActive && now - lastAutosaveMs >= AutosaveIntervalMs)
+	{
+		scanUnsavedChunks(CHUNK_CACHE_WIDTH * CHUNK_CACHE_WIDTH, now);
+		autosaveFlushActive = true;
+		lastAutosaveMs = now;
+	}
+	if (autosaveFlushActive && now - lastChunkSaveMs >= AutosaveChunkWriteSpacingMs)
+	{
+		lastChunkSaveMs = now;
+		if (savePendingUnsavedChunks(1, 0) == 0)
+		{
+			saveEntities(level, NULL);
+			level->saveLevelData();
+			autosaveFlushActive = false;
+		}
+	}
+#else
+	if ((tickCount % 50) == 0)
+	{
+		scanUnsavedChunks(CHUNK_CACHE_WIDTH * CHUNK_CACHE_WIDTH, now);
+		savePendingUnsavedChunks(2, 0);
+	}
+	if (tickCount - lastSavedEntitiesTick > (60 * SharedConstants::TicksPerSecond))
 		saveEntities(level, NULL);
-	}
+#endif
 }
 
 void ExternalFileLevelStorage::save(Level* level, LevelChunk* levelChunk)
@@ -353,7 +445,8 @@ void ExternalFileLevelStorage::save(Level* level, LevelChunk* levelChunk)
 
 	chunkData.Write((const char*)levelChunk->updateMap, CHUNK_COLUMNS);
 
-	regionFile->writeChunk(levelChunk->x, levelChunk->z, chunkData);
+	if (regionFile->writeChunk(levelChunk->x, levelChunk->z, chunkData))
+		levelChunk->unsaved = false;
 
 	// Write entities
 
@@ -603,29 +696,44 @@ void ExternalFileLevelStorage::saveGame(Level* level) {
 	saveEntities(level, NULL);
 }
 
-int ExternalFileLevelStorage::savePendingUnsavedChunks( int maxCount ) {
-    if (maxCount < 0)
-        maxCount = unsavedChunkList.size();
+int ExternalFileLevelStorage::savePendingUnsavedChunks(int maxCount)
+{
+	return savePendingUnsavedChunks(maxCount, 0);
+}
 
-    int count = 0;
-    while (++count <= maxCount && !unsavedChunkList.empty()) {
+int ExternalFileLevelStorage::savePendingUnsavedChunks(int maxCount, RakNet::TimeMS minAgeMs)
+{
+	if (maxCount < 0)
+		maxCount = unsavedChunkList.size();
 
-        UnsavedChunkList::iterator it = unsavedChunkList.begin();
-        UnsavedChunkList::iterator remove = unsavedChunkList.begin();
-        UnsavedLevelChunk* oldest = &(*it);
+	int saved = 0;
+	RakNet::TimeMS now = RakNet::GetTimeMS();
+	while (saved < maxCount && !unsavedChunkList.empty())
+	{
+		UnsavedChunkList::iterator it = unsavedChunkList.begin();
+		UnsavedChunkList::iterator remove = unsavedChunkList.end();
+		UnsavedLevelChunk* oldest = NULL;
 
-        for ( ; it != unsavedChunkList.end(); ++it) {
-            if ((*it).addedToList < oldest->addedToList) {
-                oldest = &(*it);
-                remove = it;
-            }
-        }
-        LevelChunk* chunk = oldest->chunk;
-        unsavedChunkList.erase(remove);
+		for ( ; it != unsavedChunkList.end(); ++it)
+		{
+			if (minAgeMs != 0 && now - (*it).addedToList < minAgeMs)
+				continue;
+			if (!oldest || (*it).addedToList < oldest->addedToList)
+			{
+				oldest = &(*it);
+				remove = it;
+			}
+		}
 
-        save(level, chunk);
-    }
-    return count;
+		if (!oldest)
+			break;
+
+		LevelChunk* chunk = oldest->chunk;
+		unsavedChunkList.erase(remove);
+		save(level, chunk);
+		saved++;
+	}
+	return saved;
 }
 
 void ExternalFileLevelStorage::saveAll( Level* level, std::vector<LevelChunk*>& levelChunks ) {

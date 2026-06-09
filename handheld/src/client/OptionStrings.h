@@ -27,6 +27,8 @@ public:
     static const char* Game_HideGui;
     static const char* Game_ThirdPersonView;
     static const char* Game_ViewBobbing;
+	static const char* Game_Autosave;
+	static const char* Game_ProceduralAutosave;
 
     static const char* Audio_Music;
     static const char* Audio_Sound;

@@ -1569,12 +1569,14 @@ void Level::tick(Entity* e, bool actual) {
     }
 	TIMER_POP();
 
-	// Save player info every n:th second
 	const float now = getTimeS();
-	if (now - _lastSavedPlayerTime >= 30) {
+#ifndef __3DS__
+	const float playerSaveInterval = 30.0f;
+	if (now - _lastSavedPlayerTime >= playerSaveInterval) {
 		saveLevelData();
 		_lastSavedPlayerTime = now;
 	}
+#endif
 }
 
 bool Level::isUnobstructed(const AABB& aabb) {

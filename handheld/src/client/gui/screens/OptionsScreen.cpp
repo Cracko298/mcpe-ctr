@@ -200,7 +200,9 @@ void OptionsScreen::generateOptionScreens() {
 			.addOptionItem(&Options::Option::DIFFICULTY, minecraft)
 			.addOptionItem(&Options::Option::THIRD_PERSON, minecraft)
 			.addOptionItem(&Options::Option::HIDE_GUI, minecraft)
-			.addOptionItem(&Options::Option::SERVER_VISIBLE, minecraft);
+			.addOptionItem(&Options::Option::SERVER_VISIBLE, minecraft)
+			.addOptionItem(&Options::Option::AUTOSAVE, minecraft)
+			.addOptionItem(&Options::Option::PROCEDURAL_AUTOSAVE, minecraft);
 	} else if (currentPage == 2) {
 		optionPane->createOptionsGroup("options.group.control")
 			.addOptionItem(&Options::Option::SENSITIVITY, minecraft)

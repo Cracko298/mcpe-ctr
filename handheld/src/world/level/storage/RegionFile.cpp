@@ -14,7 +14,8 @@ static void logAssert(int actual, int expected) {
 }
 
 RegionFile::RegionFile(const std::string& basePath)
-:	file(NULL)
+:	file(NULL),
+	ioBuffer(NULL)
 {
 	filename = basePath;
 	filename += "/";
@@ -24,6 +25,7 @@ RegionFile::RegionFile(const std::string& basePath)
 
 	emptyChunk = new int[SECTOR_INTS];
 	memset(emptyChunk, 0, SECTOR_INTS * sizeof(int));
+	ioBuffer = new char[SECTOR_BYTES * 16];
 }
 
 RegionFile::~RegionFile()
@@ -31,6 +33,13 @@ RegionFile::~RegionFile()
 	close();
 	delete [] offsets;
 	delete [] emptyChunk;
+	delete [] ioBuffer;
+}
+
+void RegionFile::setBuffer()
+{
+	if (file && ioBuffer)
+		setvbuf(file, ioBuffer, _IOFBF, SECTOR_BYTES * 16);
 }
 
 bool RegionFile::open()
@@ -43,6 +52,7 @@ bool RegionFile::open()
 	file = fopen(filename.c_str(), "r+b");
 	if (file)
 	{
+		setBuffer();
 		// read offset table
 		logAssert(fread(offsets, sizeof(int), SECTOR_INTS, file), SECTOR_INTS);
 
@@ -74,6 +84,7 @@ bool RegionFile::open()
 			LOGI("Failed to create chunk file %s\n", filename.c_str());
 			return false;
 		}
+		setBuffer();
 
 		// write sector header (all zeroes)
 		logAssert(fwrite(offsets, sizeof(int), SECTOR_INTS, file), SECTOR_INTS);
@@ -178,26 +189,19 @@ bool RegionFile::writeChunk(int x, int z, RakNet::BitStream& chunkData)
 
 		if (extendFile)
 		{
-			fseek(file, 0, SEEK_END);
-			for (int i = 0; i < (sectorsNeeded - runLength); i++)
-			{
-				fwrite(emptyChunk, sizeof(int), SECTOR_INTS, file);
+			for (int i = runLength; i < sectorsNeeded; i++)
 				sectorFree[slot + i] = true;
-			}
 		}
 		offsets[x + z * SECTOR_COLS] = (slot << 8) | sectorsNeeded;
-		// mark slots as taken
 		for (int i = 0; i < sectorsNeeded; i++)
 		{
 			sectorFree[slot + i] = false;
 		}
 
-		// write!
-		write(slot, chunkData);
-
-		// write sector data
 		fseek(file, (x + z * SECTOR_COLS) * sizeof(int), SEEK_SET);
 		fwrite(&offsets[x + z * SECTOR_COLS], sizeof(int), 1, file);
+
+		write(slot, chunkData);
 	}
 
 

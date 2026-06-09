@@ -7,6 +7,9 @@
 #include <cmath>
 #include <sstream>
 
+void setExternalFileAutosaveEnabled(bool enabled);
+void setExternalFileProceduralAutosaveEnabled(bool enabled);
+
 /*static*/
 bool Options::debugGl = false;
 
@@ -31,6 +34,8 @@ void Options::initDefaultValues() {
 	isJoyTouchArea = false;
 	xybaCamera = false;
 	autoJump = true;
+	autosave = true;
+	proceduralAutosave = true;
 
 	music = 1.0f;
 	sound = 1.0f;
@@ -164,7 +169,9 @@ Options::Option::USE_TOUCH_JOYPAD	 (17, "Split Controls", false, true),
 Options::Option::PIXELS_PER_MILLIMETER(19, "options.pixelspermilimeter", true, false),
 Options::Option::RENDER_DEBUG		  (20, "options.renderDebug", false, true),
 Options::Option::CONTROL_SCHEME		  (21, "XYBA controls Camera", false, true),
-Options::Option::AUTO_JUMP			  (22, "options.autoJump", false, true);
+Options::Option::AUTO_JUMP			  (22, "options.autoJump", false, true),
+Options::Option::AUTOSAVE			  (23, "Autosave", false, true),
+Options::Option::PROCEDURAL_AUTOSAVE (24, "Gradual Save", false, true);
 
 const float Options::SOUND_MIN_VALUE = 0.0f;
 const float Options::SOUND_MAX_VALUE = 1.0f;
@@ -259,6 +266,12 @@ void Options::update() {
 		if (key == OptionStrings::Controls_AutoJump) {
 			readBool(value, autoJump);
 		}
+		if (key == OptionStrings::Game_Autosave) {
+			readBool(value, autosave);
+		}
+		if (key == OptionStrings::Game_ProceduralAutosave) {
+			readBool(value, proceduralAutosave);
+		}
 
 		// Feedback
 		if (key == OptionStrings::Controls_FeedbackVibration)
@@ -298,6 +311,8 @@ void Options::update() {
 		if (key == OptionStrings::Graphics_Anaglyph3d) readBool(value, anaglyph3d);
 		if (key == OptionStrings::Graphics_LimitFramerate) readBool(value, limitFramerate);
 	}
+	setExternalFileAutosaveEnabled(autosave);
+	setExternalFileProceduralAutosaveEnabled(proceduralAutosave);
 }
 
 void Options::load() {
@@ -334,8 +349,12 @@ void Options::save() {
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_HideGui, hideGui);
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_ThirdPersonView, thirdPersonView);
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_ViewBobbing, bobView);
+	addOptionToSaveOutput(stringVec, OptionStrings::Game_Autosave, autosave);
+	addOptionToSaveOutput(stringVec, OptionStrings::Game_ProceduralAutosave, proceduralAutosave);
 
 	optionsFile.save(stringVec);
+	setExternalFileAutosaveEnabled(autosave);
+	setExternalFileProceduralAutosaveEnabled(proceduralAutosave);
 }
 
 void Options::addOptionToSaveOutput(StringVector& stringVector, std::string name, bool boolValue) {

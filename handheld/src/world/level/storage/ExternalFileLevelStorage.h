@@ -55,6 +55,7 @@ public:
 	static void saveLevelData(const std::string& directory, LevelData& levelData, std::vector<Player*>* players);
 
     int savePendingUnsavedChunks(int maxCount);
+    int savePendingUnsavedChunks(int maxCount, RakNet::TimeMS minAgeMs);
 
 	//
 	// ChunkStorage methods
@@ -81,6 +82,12 @@ private:
 	int loadedStorageVersion;
 	UnsavedChunkList unsavedChunkList;
 	int lastSavedEntitiesTick;
+	int autosaveScanCursor;
+	RakNet::TimeMS lastChunkSaveMs;
+	RakNet::TimeMS lastAutosaveMs;
+	bool autosaveFlushActive;
+	void trackUnsavedChunk(LevelChunk* chunk, int pos, RakNet::TimeMS now);
+	void scanUnsavedChunks(int maxCount, RakNet::TimeMS now);
 };
 
 #endif /*NET_MINECRAFT_WORLD_LEVEL_STORAGE__ExternalFileLevelStorage_H__*/
