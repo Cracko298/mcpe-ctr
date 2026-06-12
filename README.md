@@ -3,6 +3,11 @@
 </p>
 
 <p align="center">
+  <img width="400" height="240" alt="2026-06-12_18-45-03 218_top" src="https://github.com/user-attachments/assets/417def12-1372-4c5f-847f-c4c033206abb" />
+  <img width="400" height="240" alt="2026-06-12_18-44-10 285_top" src="https://github.com/user-attachments/assets/4a00bcea-c670-4eef-a5dc-23221ba164d4" />
+</p>
+
+<p align="center">
   <img src="docs/images/screenshot-1.png" width="480" height="640" alt="Screenshot 3">
 </p>
 
