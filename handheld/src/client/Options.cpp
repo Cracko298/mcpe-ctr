@@ -51,6 +51,7 @@ void Options::initDefaultValues() {
 	fancyGraphics = true;//false;
 #endif
 	ambientOcclusion = false;
+	mipMapping = false;
 	if(minecraft->supportNonTouchScreen())
 		useTouchScreen = false;
 	else
@@ -173,7 +174,8 @@ Options::Option::CONTROL_SCHEME		  (21, "XYBA controls Camera", false, true),
 Options::Option::AUTO_JUMP			  (22, "options.autoJump", false, true),
 Options::Option::AUTOSAVE			  (23, "Autosave", false, true),
 Options::Option::PROCEDURAL_AUTOSAVE (24, "Gradual Save", false, true),
-Options::Option::FIELD_OF_VIEW       (25, "options.fov", true, false);
+Options::Option::FIELD_OF_VIEW       (25, "options.fov", true, false),
+Options::Option::MIP_MAPPING         (26, "Mip Mapping", false, true);
 
 const float Options::SOUND_MIN_VALUE = 0.0f;
 const float Options::SOUND_MAX_VALUE = 1.0f;
@@ -242,6 +244,7 @@ void Options::update() {
 	viewDistance = 3;
 	sensitivity = 0.5f;
 	fieldOfView = 70.0f;
+	mipMapping = false;
 	StringVector optionStrings = optionsFile.getOptionStrings();
 	for (unsigned int i = 0; i < optionStrings.size(); i += 2) {
 		const std::string& key = optionStrings[i];
@@ -312,6 +315,7 @@ void Options::update() {
 #endif
 		if (key == OptionStrings::Graphics_RenderDistance) readInt(value, viewDistance);
 		if (key == OptionStrings::Graphics_FieldOfView) readFloat(value, fieldOfView);
+		if (key == OptionStrings::Graphics_MipMapping) readBool(value, mipMapping);
 		if (key == OptionStrings::Audio_Music) readFloat(value, music);
 		if (key == OptionStrings::Audio_Sound) readFloat(value, sound);
 		if (key == OptionStrings::Game_HideGui) readBool(value, hideGui);
@@ -350,6 +354,7 @@ void Options::save() {
 #endif
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_RenderDistance, viewDistance);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_FieldOfView, fieldOfView);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_MipMapping, mipMapping);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Fancy, fancyGraphics);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_AmbientOcclusion, ambientOcclusion);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Anaglyph3d, anaglyph3d);

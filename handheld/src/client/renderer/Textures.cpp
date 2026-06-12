@@ -6,6 +6,9 @@
 #include "../../platform/time.h"
 #include "../../AppPlatform.h"
 
+#include <vector>
+#include <cstring>
+
 /*static*/ int  Textures::textureChanges = 0;
 /*static*/ bool Textures::MIPMAP = false;
 #ifndef _WIN32
@@ -13,6 +16,190 @@ const TextureId Textures::InvalidId;
 #endif
 
 #define glCheck(f) do { int err = glGetError(); if(err != 0) { printf("GL Error: " #f ": %d\n", err); fflush(0); exit(1); } } while(0)
+
+
+namespace {
+static bool isTerrainAtlasName(const std::string& resourceName) {
+	const char* terrain = "terrain.png";
+	const size_t terrainLen = 11;
+	if (resourceName == terrain)
+		return true;
+	if (resourceName.length() < terrainLen)
+		return false;
+	return resourceName.compare(resourceName.length() - terrainLen, terrainLen, terrain) == 0;
+}
+
+static bool shouldUseMipMapsForTexture(const std::string& resourceName, const TextureData& img) {
+	// Minecraft's terrain atlas is the one that benefits most from mipmaps at distance.
+	// Keep this narrow so GUI/font textures stay sharp and old 3DS VRAM use stays low.
+	return Textures::MIPMAP &&
+		isTerrainAtlasName(resourceName) &&
+		img.data != NULL &&
+		img.format == TEXF_UNCOMPRESSED_8888 &&
+		img.w > 1 && img.h > 1 &&
+		(img.w % 16) == 0 && (img.h % 16) == 0;
+}
+
+static void average4RGBA(const unsigned char* c0, const unsigned char* c1,
+						 const unsigned char* c2, const unsigned char* c3,
+						 unsigned char* out) {
+	const unsigned char* c[4] = { c0, c1, c2, c3 };
+	int aSum = 0;
+	int rWeighted = 0;
+	int gWeighted = 0;
+	int bWeighted = 0;
+	int rPlain = 0;
+	int gPlain = 0;
+	int bPlain = 0;
+	int aPlain = 0;
+
+	for (int i = 0; i < 4; ++i) {
+		int r = c[i][0];
+		int g = c[i][1];
+		int b = c[i][2];
+		int a = c[i][3];
+		rPlain += r;
+		gPlain += g;
+		bPlain += b;
+		aPlain += a;
+		aSum += a;
+		rWeighted += r * a;
+		gWeighted += g * a;
+		bWeighted += b * a;
+	}
+
+	if (aSum > 0) {
+		out[0] = (unsigned char)(rWeighted / aSum);
+		out[1] = (unsigned char)(gWeighted / aSum);
+		out[2] = (unsigned char)(bWeighted / aSum);
+	} else {
+		out[0] = (unsigned char)(rPlain >> 2);
+		out[1] = (unsigned char)(gPlain >> 2);
+		out[2] = (unsigned char)(bPlain >> 2);
+	}
+	out[3] = (unsigned char)(aPlain >> 2);
+}
+
+static const unsigned char* pixelAtRGBA(const unsigned char* src, int w, int h, int x, int y) {
+	if (x < 0) x = 0;
+	if (y < 0) y = 0;
+	if (x >= w) x = w - 1;
+	if (y >= h) y = h - 1;
+	return src + ((y * w + x) << 2);
+}
+
+static void downsampleRGBA(const unsigned char* src, int srcW, int srcH,
+						  unsigned char* dst, int dstW, int dstH) {
+	for (int y = 0; y < dstH; ++y) {
+		for (int x = 0; x < dstW; ++x) {
+			int sx = x << 1;
+			int sy = y << 1;
+			average4RGBA(pixelAtRGBA(src, srcW, srcH, sx,     sy),
+						 pixelAtRGBA(src, srcW, srcH, sx + 1, sy),
+						 pixelAtRGBA(src, srcW, srcH, sx + 1, sy + 1),
+						 pixelAtRGBA(src, srcW, srcH, sx,     sy + 1),
+						 dst + ((y * dstW + x) << 2));
+		}
+	}
+}
+
+static void downsampleAtlasRGBA(const unsigned char* src, int srcW, int srcH,
+							   unsigned char* dst, int dstW, int dstH,
+							   int tilesX, int tilesY) {
+	const int srcTileW = srcW / tilesX;
+	const int srcTileH = srcH / tilesY;
+	const int dstTileW = dstW / tilesX;
+	const int dstTileH = dstH / tilesY;
+
+	for (int ty = 0; ty < tilesY; ++ty) {
+		for (int tx = 0; tx < tilesX; ++tx) {
+			const int srcBaseX = tx * srcTileW;
+			const int srcBaseY = ty * srcTileH;
+			const int dstBaseX = tx * dstTileW;
+			const int dstBaseY = ty * dstTileH;
+
+			for (int y = 0; y < dstTileH; ++y) {
+				for (int x = 0; x < dstTileW; ++x) {
+					int sx0 = srcBaseX + (x << 1);
+					int sy0 = srcBaseY + (y << 1);
+					int sx1 = sx0 + 1;
+					int sy1 = sy0 + 1;
+					if (sx0 >= srcBaseX + srcTileW) sx0 = srcBaseX + srcTileW - 1;
+					if (sy0 >= srcBaseY + srcTileH) sy0 = srcBaseY + srcTileH - 1;
+					if (sx1 >= srcBaseX + srcTileW) sx1 = srcBaseX + srcTileW - 1;
+					if (sy1 >= srcBaseY + srcTileH) sy1 = srcBaseY + srcTileH - 1;
+
+					average4RGBA(pixelAtRGBA(src, srcW, srcH, sx0, sy0),
+							 pixelAtRGBA(src, srcW, srcH, sx1, sy0),
+							 pixelAtRGBA(src, srcW, srcH, sx1, sy1),
+							 pixelAtRGBA(src, srcW, srcH, sx0, sy1),
+							 dst + (((dstBaseY + y) * dstW + dstBaseX + x) << 2));
+				}
+			}
+		}
+	}
+}
+
+static void uploadGeneratedMipMaps(const std::string& resourceName, const TextureData& img, GLint mode) {
+	if (!shouldUseMipMapsForTexture(resourceName, img))
+		return;
+
+	std::vector<unsigned char> prev(img.data, img.data + img.w * img.h * 4);
+	int srcW = img.w;
+	int srcH = img.h;
+	int level = 1;
+	bool atlasSafe = isTerrainAtlasName(resourceName) && (srcW % 16) == 0 && (srcH % 16) == 0;
+
+	while (srcW > 1 || srcH > 1) {
+		int dstW;
+		int dstH;
+
+		if (atlasSafe && srcW >= 16 && srcH >= 16 && (srcW % 16) == 0 && (srcH % 16) == 0 && (srcW / 16 > 1 || srcH / 16 > 1)) {
+			int dstTileW = (srcW / 16) > 1 ? (srcW / 16) >> 1 : 1;
+			int dstTileH = (srcH / 16) > 1 ? (srcH / 16) >> 1 : 1;
+			dstW = dstTileW * 16;
+			dstH = dstTileH * 16;
+		} else {
+			atlasSafe = false;
+			dstW = srcW > 1 ? srcW >> 1 : 1;
+			dstH = srcH > 1 ? srcH >> 1 : 1;
+		}
+
+		std::vector<unsigned char> next(dstW * dstH * 4);
+		if (atlasSafe)
+			downsampleAtlasRGBA(&prev[0], srcW, srcH, &next[0], dstW, dstH, 16, 16);
+		else
+			downsampleRGBA(&prev[0], srcW, srcH, &next[0], dstW, dstH);
+
+		glTexImage2D2(GL_TEXTURE_2D, level, mode, dstW, dstH, 0, mode, GL_UNSIGNED_BYTE, &next[0]);
+		glCheck(glTexImage2D2);
+
+		prev.swap(next);
+		srcW = dstW;
+		srcH = dstH;
+		++level;
+	}
+}
+
+static void uploadDynamicTextureMipMaps(DynamicTexture* tex, int tileRepeatX, int tileRepeatY) {
+	std::vector<unsigned char> prev(tex->pixels, tex->pixels + 16 * 16 * 4);
+	int srcSize = 16;
+	int level = 1;
+	while (srcSize > 1) {
+		int dstSize = srcSize >> 1;
+		std::vector<unsigned char> next(dstSize * dstSize * 4);
+		downsampleRGBA(&prev[0], srcSize, srcSize, &next[0], dstSize, dstSize);
+		glTexSubImage2D2(GL_TEXTURE_2D, level,
+			((tex->tex % 16) + tileRepeatX) * dstSize,
+			((tex->tex / 16) + tileRepeatY) * dstSize,
+			dstSize, dstSize, GL_RGBA, GL_UNSIGNED_BYTE, &next[0]);
+		glCheck(glTexSubImage2D2);
+		prev.swap(next);
+		srcSize = dstSize;
+		++level;
+	}
+}
+}
 
 Textures::Textures( Options* options_, AppPlatform* platform_ )
 :	clamp(false),
@@ -89,9 +276,11 @@ TextureId Textures::assignTexture( const std::string& resourceName, const Textur
 
 	bind(id);
 
-	if (MIPMAP) {
-		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	const bool useMipMaps = shouldUseMipMapsForTexture(resourceName, img);
+	if (useMipMaps) {
+		// Keep block textures pixel-crisp while still selecting smaller mip levels at distance.
+		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	} else {
 		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -140,6 +329,8 @@ TextureId Textures::assignTexture( const std::string& resourceName, const Textur
             }
             else {
                 glTexImage2D2(GL_TEXTURE_2D, 0, mode, img.w, img.h, 0, mode, GL_UNSIGNED_BYTE, img.data);
+				if (useMipMaps)
+					uploadGeneratedMipMaps(resourceName, img, mode);
             }
 			glCheck(glTexImage2D2);
             break;
@@ -175,6 +366,8 @@ void Textures::tick(bool uploadToGraphicsCard)
 						tex->tex / 16 * 16 + yy * 16, 16, 16,
 						GL_RGBA, GL_UNSIGNED_BYTE, tex->pixels);
 					glCheck(glTexSubImage2D2);
+					if (MIPMAP)
+						uploadDynamicTextureMipMaps(tex, xx, yy);
 				}
 			}
         }

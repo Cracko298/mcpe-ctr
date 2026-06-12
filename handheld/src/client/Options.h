@@ -54,6 +54,7 @@ public:
 		static const Option AUTOSAVE;
 		static const Option PROCEDURAL_AUTOSAVE;
 		static const Option FIELD_OF_VIEW;
+		static const Option MIP_MAPPING;
 
 		/*
 		 s tatic Option* getItem(int id) {    *
@@ -124,6 +125,7 @@ public:
 	bool limitFramerate;
 	bool fancyGraphics;
 	bool ambientOcclusion;
+	bool mipMapping;
 	bool useMouseForDigging;
 	bool isLeftHanded;
 	//std::string skin;
@@ -230,6 +232,7 @@ public:
 		if (option == &Option::AUTO_JUMP) autoJump = !autoJump;
 		if (option == &Option::AUTOSAVE) autosave = !autosave;
 		if (option == &Option::PROCEDURAL_AUTOSAVE) proceduralAutosave = !proceduralAutosave;
+		if (option == &Option::MIP_MAPPING) mipMapping = !mipMapping;
 		if (option == &Option::ANAGLYPH) {
 			anaglyph3d = !anaglyph3d;
 			//minecraft->textures.reloadAll();
@@ -298,6 +301,8 @@ public:
 			return autosave;
 		if (item == &Option::PROCEDURAL_AUTOSAVE)
 			return proceduralAutosave;
+		if (item == &Option::MIP_MAPPING)
+			return mipMapping;
 		return false;
 	}
 
