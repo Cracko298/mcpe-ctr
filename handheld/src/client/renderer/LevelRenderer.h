@@ -65,6 +65,7 @@ public:
 	bool updateDirtyChunks(Mob* player, bool force);
 	void setDirty(int x0, int y0, int z0, int x1, int y1, int z1, bool priority = false);
     void tileChanged(int x, int y, int z);
+    void tileBrightnessChanged(int x, int y, int z);
     void setTilesDirty(int x0, int y0, int z0, int x1, int y1, int z1);
 	void cull(Culler* culler, float a);
     void skyColorChanged();
@@ -82,6 +83,8 @@ public:
 	void onGraphicsReset();
 private:
 	void generateSky();
+	void queueLightDirty(int x0, int y0, int z0, int x1, int y1, int z1);
+	void flushLightDirty();
 
 	int  renderChunks(int from, int to, int layer, float alpha);
 	void resortChunks(int xc, int yc, int zc);
@@ -97,6 +100,10 @@ private:
 
 	std::vector<Chunk*> _nearChunks;
 	std::vector<Chunk*> _priorityDirtyChunks;
+
+	bool _lightDirtyPending;
+	int _lightDirtyX0, _lightDirtyY0, _lightDirtyZ0;
+	int _lightDirtyX1, _lightDirtyY1, _lightDirtyZ1;
 
     int cullStep;
 	//static const int renderListsLength = 4;
