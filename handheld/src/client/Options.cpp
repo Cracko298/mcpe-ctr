@@ -56,6 +56,7 @@ void Options::initDefaultValues() {
 	else
 		useTouchScreen = true;
 	pixelsPerMillimeter = minecraft->platform()->getPixelsPerMillimeter();
+	fieldOfView = 70.0f;
 	//useMouseForDigging = true;
 
 	//skin     = "Default";
@@ -171,7 +172,8 @@ Options::Option::RENDER_DEBUG		  (20, "options.renderDebug", false, true),
 Options::Option::CONTROL_SCHEME		  (21, "XYBA controls Camera", false, true),
 Options::Option::AUTO_JUMP			  (22, "options.autoJump", false, true),
 Options::Option::AUTOSAVE			  (23, "Autosave", false, true),
-Options::Option::PROCEDURAL_AUTOSAVE (24, "Gradual Save", false, true);
+Options::Option::PROCEDURAL_AUTOSAVE (24, "Gradual Save", false, true),
+Options::Option::FIELD_OF_VIEW       (25, "options.fov", true, false);
 
 const float Options::SOUND_MIN_VALUE = 0.0f;
 const float Options::SOUND_MAX_VALUE = 1.0f;
@@ -181,6 +183,8 @@ const float Options::SENSITIVITY_MIN_VALUE = 0.0f;
 const float Options::SENSITIVITY_MAX_VALUE = 1.0f;
 const float Options::PIXELS_PER_MILLIMETER_MIN_VALUE = 3.0f;
 const float Options::PIXELS_PER_MILLIMETER_MAX_VALUE = 4.0f;
+const float Options::FIELD_OF_VIEW_MIN_VALUE = 60.0f;
+const float Options::FIELD_OF_VIEW_MAX_VALUE = 110.0f;
 
 const char* Options::RENDER_DISTANCE_NAMES[] = {
 	"options.renderDistance.far",
@@ -214,6 +218,10 @@ void Options::set(const Options::Option* item, float value) {
 		viewDistance = value;
 	} else if (item == &Options::Option::PIXELS_PER_MILLIMETER) {
 		pixelsPerMillimeter = value;
+	} else if (item == &Options::Option::FIELD_OF_VIEW) {
+		if (value < FIELD_OF_VIEW_MIN_VALUE) value = FIELD_OF_VIEW_MIN_VALUE;
+		if (value > FIELD_OF_VIEW_MAX_VALUE) value = FIELD_OF_VIEW_MAX_VALUE;
+		fieldOfView = value;
 	}
 	notifyOptionUpdate(item, value);
 	save();
@@ -233,6 +241,7 @@ void Options::set(const Options::Option* item, int value) {
 void Options::update() {
 	viewDistance = 3;
 	sensitivity = 0.5f;
+	fieldOfView = 70.0f;
 	StringVector optionStrings = optionsFile.getOptionStrings();
 	for (unsigned int i = 0; i < optionStrings.size(); i += 2) {
 		const std::string& key = optionStrings[i];
@@ -302,6 +311,7 @@ void Options::update() {
 		if (key == OptionStrings::Graphics_Debug) readBool(value, renderDebug);
 #endif
 		if (key == OptionStrings::Graphics_RenderDistance) readInt(value, viewDistance);
+		if (key == OptionStrings::Graphics_FieldOfView) readFloat(value, fieldOfView);
 		if (key == OptionStrings::Audio_Music) readFloat(value, music);
 		if (key == OptionStrings::Audio_Sound) readFloat(value, sound);
 		if (key == OptionStrings::Game_HideGui) readBool(value, hideGui);
@@ -311,6 +321,8 @@ void Options::update() {
 		if (key == OptionStrings::Graphics_Anaglyph3d) readBool(value, anaglyph3d);
 		if (key == OptionStrings::Graphics_LimitFramerate) readBool(value, limitFramerate);
 	}
+	if (fieldOfView < FIELD_OF_VIEW_MIN_VALUE) fieldOfView = FIELD_OF_VIEW_MIN_VALUE;
+	if (fieldOfView > FIELD_OF_VIEW_MAX_VALUE) fieldOfView = FIELD_OF_VIEW_MAX_VALUE;
 	setExternalFileAutosaveEnabled(autosave);
 	setExternalFileProceduralAutosaveEnabled(proceduralAutosave);
 }
@@ -337,6 +349,7 @@ void Options::save() {
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Debug, renderDebug);
 #endif
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_RenderDistance, viewDistance);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_FieldOfView, fieldOfView);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Fancy, fancyGraphics);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_AmbientOcclusion, ambientOcclusion);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Anaglyph3d, anaglyph3d);

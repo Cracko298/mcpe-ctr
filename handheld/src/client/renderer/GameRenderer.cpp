@@ -31,6 +31,7 @@
 #ifdef __3DS__
 #include <NovaGL.h>
 #include "../../util/CtrFrameTiming.h"
+#include "../../util/CheckNew3DS.h"
 #endif
 
 int g_stereoEyeCount = 1;
@@ -479,13 +480,12 @@ void GameRenderer::renderLevel(float a) {
 // 			glFogf(GL_FOG_END, renderDistance);
 //         }
 #ifdef __3DS__
-        // On 3DS, only enable fog when submerged (water/lava) to save GPU performance
-        if (mc->cameraTargetPlayer->isUnderLiquid(Material::water) || mc->cameraTargetPlayer->isUnderLiquid(Material::lava)) {
-            glEnable2(GL_FOG);
-            setupFog(1);
-        } else {
-            glDisable2(GL_FOG);
-        }
+        // Keep fixed-function world fog enabled on 3DS too. The old code disabled
+        // it outside liquids, which exposed the hard far-plane/chunk-ring edge and
+        // made chunks visibly pop in/out. Linear fog is cheap compared to another
+        // chunk rebuild and hides those transitions.
+        glEnable2(GL_FOG);
+        setupFog(1);
 #else
         glEnable2(GL_FOG);
         setupFog(1);
@@ -521,10 +521,8 @@ void GameRenderer::renderLevel(float a) {
 		}
 
 #ifdef __3DS__
-        if (mc->cameraTargetPlayer->isUnderLiquid(Material::water) || mc->cameraTargetPlayer->isUnderLiquid(Material::lava)) {
-            setupFog(0);
-            glEnable2(GL_FOG);
-        }
+        setupFog(0);
+        glEnable2(GL_FOG);
 #else
         setupFog(0);
         glEnable2(GL_FOG);
@@ -583,9 +581,7 @@ void GameRenderer::renderLevel(float a) {
 		glDisable2(GL_BLEND);
         glBlendFunc2(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 #ifdef __3DS__
-        if (mc->cameraTargetPlayer->isUnderLiquid(Material::water) || mc->cameraTargetPlayer->isUnderLiquid(Material::lava)) {
-            setupFog(0);
-        }
+        setupFog(0);
 #else
         setupFog(0);
 #endif
@@ -645,9 +641,7 @@ void GameRenderer::renderLevel(float a) {
 ////        levelRenderer->renderClouds(a);
 //        glDisable2(GL_FOG);
 #ifdef __3DS__
-        if (mc->cameraTargetPlayer->isUnderLiquid(Material::water) || mc->cameraTargetPlayer->isUnderLiquid(Material::lava)) {
-            setupFog(1);
-        }
+        setupFog(1);
 #else
         setupFog(1);
 #endif
@@ -720,12 +714,14 @@ void GameRenderer::tickFov() {
 /*private*/
 float GameRenderer::getFov(float a, bool applyEffects) {
     Mob* player = mc->cameraTargetPlayer;
-    float fov = 70;
+    float fov = mc->options.fieldOfView;
 
 	if (applyEffects)
 		fov *= this->oFov + (this->fov - this->oFov) * a;
 
-    if (player->isUnderLiquid(Material::water)) fov = 60;
+    // Vanilla used 70 normally and 60 underwater. Keep the same relative
+    // reduction so custom FOV does not snap back to a fixed value in liquids.
+    if (player->isUnderLiquid(Material::water)) fov -= 10.0f;
     if (player->health <= 0) {
         float duration = player->deathTime + a;
 
@@ -904,6 +900,23 @@ void GameRenderer::setupFog(int i) {
     } else {
     	glFogf(GL_FOG_MODE, GL_LINEAR);
 
+#ifdef __3DS__
+        // Fog must reach near-full opacity before the projection far-plane so
+        // delayed chunk rebuilds / ring-wraps are hidden instead of popping.
+        // O3DS gets a slightly earlier fog wall to mask its lower rebuild budget.
+        const bool old3ds = !IsNew3DS();
+        float fogStart = renderDistance * (old3ds ? 0.42f : 0.50f);
+        float fogEnd   = renderDistance * (old3ds ? 0.86f : 0.92f);
+        if (i < 0) {
+            fogStart = 0.0f;
+            fogEnd = renderDistance * (old3ds ? 0.78f : 0.84f);
+        }
+        if (mc->level->dimension->foggy) {
+            fogStart = 0.0f;
+        }
+        glFogf(GL_FOG_START, fogStart);
+        glFogf(GL_FOG_END, fogEnd);
+#else
         glFogf(GL_FOG_START, renderDistance * 0.25f);
         glFogf(GL_FOG_END, renderDistance * 0.75f);
         if (i < 0) {
@@ -914,6 +927,7 @@ void GameRenderer::setupFog(int i) {
         if (mc->level->dimension->foggy) {
             glFogf(GL_FOG_START, 0);
         }
+#endif
     }
 
     glEnable2(GL_COLOR_MATERIAL);

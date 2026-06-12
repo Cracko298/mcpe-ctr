@@ -1038,11 +1038,11 @@ void LevelRenderer::setTilesDirty( int x0, int y0, int z0, int x1, int y1, int z
 void LevelRenderer::cull( Culler* culler, float a )
 {
 #ifdef __3DS__
-	// На 3DS frustum-cull всех чанков (xChunks*yChunks*zChunks ~= 128+ на
-	// viewDistance=3) — заметный кусок CPU. Делаем cull через кадр: одна
-	// видимость живёт максимум 2 кадра, для 30 FPS это 66ms задержки появления
-	// нового видимого чанка — незаметно. Работает на ОБЕИХ 3DS.
-	if (cullStep & 1) {
+	// Frustum-culling every chunk is a noticeable CPU slice. N3DS keeps the
+	// previous every-other-frame cadence; O3DS does it every third frame. The
+	// world fog now hides the tiny visibility delay at the far edge.
+	const int cullDivisor = IsNew3DS() ? 2 : 3;
+	if ((cullStep % cullDivisor) != 0) {
 		cullStep++;
 		return;
 	}

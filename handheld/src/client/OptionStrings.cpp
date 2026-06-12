@@ -10,6 +10,7 @@ const char* OptionStrings::Graphics_AmbientOcclusion   = "gfx_ambientocclusion";
 const char* OptionStrings::Graphics_Anaglyph3d         = "gfx_anaglyph3d";
 const char* OptionStrings::Graphics_LimitFramerate     = "gfx_limitframerate";
 const char* OptionStrings::Graphics_Debug              = "gfx_debug";
+const char* OptionStrings::Graphics_FieldOfView        = "gfx_fov";
 
 const char* OptionStrings::Controls_Sensitivity        = "ctrl_sensitivity";
 const char* OptionStrings::Controls_InvertMouse        = "ctrl_invertmouse";

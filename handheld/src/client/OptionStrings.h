@@ -13,6 +13,7 @@ public:
     static const char* Graphics_Anaglyph3d;
     static const char* Graphics_LimitFramerate;
     static const char* Graphics_Debug;
+    static const char* Graphics_FieldOfView;
 
     static const char* Controls_Sensitivity;
     static const char* Controls_InvertMouse;
