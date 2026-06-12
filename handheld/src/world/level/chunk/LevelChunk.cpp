@@ -413,6 +413,11 @@ int LevelChunk::getRawBrightness( int x, int y, int z, int skyDampen )
 	int block = blockLight.get(x, y, z);
 	if (block > light) light = block;
 
+	// When skyDarken is greater than stored skylight, `light` can go negative.
+	// That value is used as brightnessRamp[light], so clamp it here to avoid
+	// out-of-bounds reads and random/broken lighting on dark chunks.
+	if (light < 0) light = 0;
+	else if (light > 15) light = 15;
 	return light;
 }
 
