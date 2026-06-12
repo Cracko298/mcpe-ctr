@@ -38,10 +38,6 @@ int g_stereoEyeCount = 1;
 float g_stereoSlider = 0.0f;
 bool g_stereoNativeActive = false;
 
-// Negative sign inverts parallax so geometry pops OUT of the screen.
-// Magnitude caps the per-eye offset at full slider; the 0.07 / 0.10 base
-// constants were tuned for anaglyph and are too strong for the 3DS parallax
-// barrier.
 static const float kNativeStereoIntensity = -0.4225f;
 
 static int _shTicks = -1;
@@ -491,9 +487,7 @@ void GameRenderer::renderLevel(float a) {
         setupFog(1);
 #endif
 
-        if (mc->options.ambientOcclusion) {
-            glShadeModel2(GL_SMOOTH);
-		}
+        glShadeModel2(mc->options.ambientOcclusion ? GL_SMOOTH : GL_FLAT);
         
 		TIMER_POP_PUSH("frustrum");
 		FrustumCuller frustum;
@@ -901,19 +895,23 @@ void GameRenderer::setupFog(int i) {
     	glFogf(GL_FOG_MODE, GL_LINEAR);
 
 #ifdef __3DS__
-        // Fog must reach near-full opacity before the projection far-plane so
-        // delayed chunk rebuilds / ring-wraps are hidden instead of popping.
-        // O3DS gets a slightly earlier fog wall to mask its lower rebuild budget.
+        // Hide the rolling chunk ring, not just the projection far plane. The
+        // chunk grid can wrap/rebuild before the old 0.86/0.92 fog end, so the
+        // player could still see chunks pop or disappear through light fog.
+        // These values make terrain reach full fog well before that boundary.
+        // O3DS uses the tighter curve because its chunk rebuild cadence is lower.
         const bool old3ds = !IsNew3DS();
-        float fogStart = renderDistance * (old3ds ? 0.42f : 0.50f);
-        float fogEnd   = renderDistance * (old3ds ? 0.86f : 0.92f);
+        float fogStart = renderDistance * (old3ds ? 0.24f : 0.30f);
+        float fogEnd   = renderDistance * (old3ds ? 0.56f : 0.66f);
         if (i < 0) {
             fogStart = 0.0f;
-            fogEnd = renderDistance * (old3ds ? 0.78f : 0.84f);
+            fogEnd = renderDistance * (old3ds ? 0.50f : 0.58f);
         }
         if (mc->level->dimension->foggy) {
             fogStart = 0.0f;
+            fogEnd *= 0.80f;
         }
+        if (fogEnd < fogStart + 8.0f) fogEnd = fogStart + 8.0f;
         glFogf(GL_FOG_START, fogStart);
         glFogf(GL_FOG_END, fogEnd);
 #else
