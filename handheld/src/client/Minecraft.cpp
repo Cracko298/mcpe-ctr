@@ -1451,7 +1451,10 @@ void Minecraft::setSize(int w, int h) {
 }
 
 void Minecraft::reloadOptions() {
+	bool oldAmbientOcclusion = useAmbientOcclusion;
 	options.update();
+	useAmbientOcclusion = options.ambientOcclusion;
+	if (levelRenderer && oldAmbientOcclusion != useAmbientOcclusion) levelRenderer->allChanged();
 	options.save();
 	bool wasTouchscreen = options.useTouchScreen;
 	options.useTouchScreen = useTouchscreen();
@@ -1798,8 +1801,9 @@ void Minecraft::optionUpdated( const Options::Option* option, bool value ) {
 	if (player && option == &Options::Option::AUTO_JUMP) {
 		player->autoJumpEnabled = value;
 	}
-	if (option == &Options::Option::AMBIENT_OCCLUSION && levelRenderer) {
-		levelRenderer->allChanged();
+	if (option == &Options::Option::AMBIENT_OCCLUSION) {
+		useAmbientOcclusion = value;
+		if (levelRenderer) levelRenderer->allChanged();
 	}
 	if (option == &Options::Option::LEFT_HANDED && inputHolder) {
 		inputHolder->onConfigChanged(createConfig(this));
