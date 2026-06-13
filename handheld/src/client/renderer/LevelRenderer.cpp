@@ -628,6 +628,12 @@ int LevelRenderer::renderChunks( int from, int to, int layer, float alpha )
 	if (layer == 0) {
 		for (int i = from; i < to; i++) {
 			Chunk* c = sortedChunks[i];
+#ifdef __3DS__
+			if (c->needsFullRebuildFor(player) && !c->isDirty()) {
+				c->setDirty();
+				dirtyChunks.push_back(c);
+			}
+#endif
 			totalChunks++;
 			if (c->empty[0]) { emptyChunks++; continue; }
 			if (!c->visible) { offscreenChunks++; continue; }
@@ -693,6 +699,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 		for (int i = (int)_priorityDirtyChunks.size() - 1; i >= 0 && priorityDone < priorityBudget; i--) {
 			Chunk* chunk = _priorityDirtyChunks[i];
 			if (chunk != NULL && chunk->isDirty()) {
+				chunk->setRenderContext(player, mc->options.farTerrainPreview);
 				chunk->rebuild();
 				chunk->setClean();
 				std::vector<Chunk*>::iterator it = std::find(dirtyChunks.begin(), dirtyChunks.end(), chunk);
@@ -724,6 +731,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 			} else {
 				if (!chunk->visible) continue;
 			}
+			chunk->setRenderContext(player, mc->options.farTerrainPreview);
 			chunk->rebuild();
 
 			dirtyChunks.erase( std::find(dirtyChunks.begin(), dirtyChunks.end(), chunk) ); // @q: s-i?
@@ -854,6 +862,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 					pendingChunkRemoved--;
 					continue;
 				}
+				chunk->setRenderContext(player, mc->options.farTerrainPreview);
 				chunk->rebuild();
 				chunk->setClean();
 				if (isFirstBuild) firstBuildDone++;
@@ -890,6 +899,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 						break;
 					}
 
+					chunk->setRenderContext(player, mc->options.farTerrainPreview);
 					chunk->rebuild();
 					chunk->setClean();
 					rebuiltSecondary[secondaryRemoved] = chunk;

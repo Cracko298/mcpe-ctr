@@ -1824,6 +1824,11 @@ void Minecraft::optionUpdated( const Options::Option* option, bool value ) {
 		if (levelRenderer) levelRenderer->allChanged();
 	}
 #endif
+#ifdef __3DS__
+	if (option == &Options::Option::FAR_TERRAIN_PREVIEW) {
+		if (levelRenderer) levelRenderer->allChanged();
+	}
+#endif
 	if (option == &Options::Option::LEFT_HANDED && inputHolder) {
 		inputHolder->onConfigChanged(createConfig(this));
 	}

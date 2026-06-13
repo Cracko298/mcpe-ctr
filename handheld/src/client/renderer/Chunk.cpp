@@ -14,6 +14,50 @@
 #endif
 
 /*static*/ int Chunk::updates = 0;
+
+#ifdef __3DS__
+static const float kFarTerrainPreviewStartSqr = 72.0f * 72.0f;
+static const float kFarTerrainPreviewFullSqr  = 56.0f * 56.0f;
+static const int   kFarTerrainSurfaceDepth    = 5;
+
+static int getPreviewHeight(Level* level, int x, int z)
+{
+	if (level == NULL) return 0;
+	return level->getHeightmap(x, z);
+}
+
+static bool shouldSkipForFarTerrainPreview(Level* level, Tile* tile, int x, int y, int z)
+{
+	if (level == NULL || tile == NULL) return false;
+	// Only simplify ordinary opaque block terrain. Keep liquids, torches, plants,
+	// ladders, fences, tile-entity-ish shapes, etc. so interactable/silhouette
+	// geometry is not randomly removed from far chunks.
+	if (tile->getRenderShape() != Tile::SHAPE_BLOCK) return false;
+	if (!tile->isSolidRender()) return false;
+	if (Tile::lightEmission[tile->id] > 0) return false;
+
+	const int h  = getPreviewHeight(level, x, z);
+	const int hx = getPreviewHeight(level, x - 1, z);
+	const int hX = getPreviewHeight(level, x + 1, z);
+	const int hz = getPreviewHeight(level, x, z - 1);
+	const int hZ = getPreviewHeight(level, x, z + 1);
+
+	int minNeighbour = hx;
+	if (hX < minNeighbour) minNeighbour = hX;
+	if (hz < minNeighbour) minNeighbour = hz;
+	if (hZ < minNeighbour) minNeighbour = hZ;
+
+	// Keep the top few blocks of each column so the far chunk still reads as a
+	// terrain preview. Also keep columns near low neighboring heightmap values,
+	// which preserves cliffs, mountain edges and ravines that are open to sky.
+	const int keepBelowOwnSurface = h - kFarTerrainSurfaceDepth;
+	const int keepNearOpenProfile = minNeighbour - kFarTerrainSurfaceDepth;
+	if (y >= keepBelowOwnSurface) return false;
+	if (y >= keepNearOpenProfile) return false;
+
+	return true;
+}
+#endif
 //static Stopwatch swRebuild;
 //int* _layerChunks[3] = {0, 0, 0}; //Chunk::NumLayers];
 //int _layerChunkCount[3] = {0, 0, 0};
@@ -29,6 +73,8 @@ Chunk::Chunk( Level* level_, int x, int y, int z, int size, int lists_, GLuint* 
 	occlusion_querying(false),
 	lists(lists_),
 	vboBuffers(ptrBuf),
+	_farTerrainPreview(false),
+	_builtWithFarTerrainPreview(false),
 	bb(0,0,0,1,1,1),
 	t(Tesselator::instance)
 {
@@ -68,6 +114,28 @@ void Chunk::setPos( int x, int y, int z )
 void Chunk::translateToPos()
 {
 	glTranslatef2((float)x, (float)y, (float)z);
+}
+
+void Chunk::setRenderContext(const Entity* player, bool farTerrainPreview)
+{
+#ifdef __3DS__
+	_farTerrainPreview = farTerrainPreview && player != NULL && distanceToSqr(player) > kFarTerrainPreviewStartSqr;
+#else
+	(void)player;
+	(void)farTerrainPreview;
+	_farTerrainPreview = false;
+#endif
+}
+
+bool Chunk::needsFullRebuildFor(const Entity* player) const
+{
+#ifdef __3DS__
+	return _builtWithFarTerrainPreview && !dirty && compiled && player != NULL &&
+		distanceToSqr(player) < kFarTerrainPreviewFullSqr;
+#else
+	(void)player;
+	return false;
+#endif
 }
 
 void Chunk::rebuild()
@@ -114,6 +182,9 @@ void Chunk::rebuild()
 				if (tileId == 0) continue;
 				Tile* tile = Tile::tiles[tileId];
 				if (tile == NULL) continue;
+#ifdef __3DS__
+				if (_farTerrainPreview && shouldSkipForFarTerrainPreview(level, tile, xx, yy, zz)) continue;
+#endif
 				int rl = tile->getRenderLayer();
 				if ((unsigned)rl >= (unsigned)NumLayers) continue;
 				int n = layerCount[rl];
@@ -243,6 +314,7 @@ void Chunk::rebuild()
 #endif
 
 	skyLit = LevelChunk::touchedSky;
+	_builtWithFarTerrainPreview = _farTerrainPreview;
 	compiled = true;
 	return;
 }
@@ -270,6 +342,7 @@ void Chunk::reset()
 	}
 	visible = false;
 	compiled = false;
+	_builtWithFarTerrainPreview = false;
     _empty = true;
 }
 

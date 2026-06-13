@@ -195,6 +195,7 @@ void OptionsScreen::generateOptionScreens() {
 			.addOptionItem(&Options::Option::FIELD_OF_VIEW, minecraft)
 			.addOptionItem(&Options::Option::AMBIENT_OCCLUSION, minecraft)
 			.addOptionItem(&Options::Option::MIP_MAPPING, minecraft)
+			.addOptionItem(&Options::Option::FAR_TERRAIN_PREVIEW, minecraft)
 			.addOptionItem(&Options::Option::VIEW_BOBBING, minecraft)
 			.addOptionItem(&Options::Option::ANAGLYPH, minecraft)
 			.addOptionItem(&Options::Option::LIMIT_FRAMERATE, minecraft);
