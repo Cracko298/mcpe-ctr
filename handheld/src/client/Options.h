@@ -53,6 +53,9 @@ public:
 		static const Option AUTO_JUMP;
 		static const Option AUTOSAVE;
 		static const Option PROCEDURAL_AUTOSAVE;
+		static const Option FIELD_OF_VIEW;
+		static const Option MIP_MAPPING;
+		static const Option FAR_TERRAIN_PREVIEW;
 
 		/*
 		 s tatic Option* getItem(int id) {    *
@@ -103,6 +106,8 @@ private:
 	static const float SENSITIVITY_MAX_VALUE;
 	static const float PIXELS_PER_MILLIMETER_MIN_VALUE;
 	static const float PIXELS_PER_MILLIMETER_MAX_VALUE;
+	static const float FIELD_OF_VIEW_MIN_VALUE;
+	static const float FIELD_OF_VIEW_MAX_VALUE;
 	static const char* RENDER_DISTANCE_NAMES[];
 	static const char* DIFFICULTY_NAMES[];
 	static const char* GUI_SCALE[];
@@ -121,6 +126,8 @@ public:
 	bool limitFramerate;
 	bool fancyGraphics;
 	bool ambientOcclusion;
+	bool mipMapping;
+	bool farTerrainPreview;
 	bool useMouseForDigging;
 	bool isLeftHanded;
 	//std::string skin;
@@ -170,6 +177,7 @@ public:
 	bool proceduralAutosave;
 	bool xybaCamera;
 	float pixelsPerMillimeter;
+	float fieldOfView;
 	Options(Minecraft* minecraft, const std::string& workingDirectory)
 	:	minecraft(minecraft)
 	{
@@ -226,6 +234,8 @@ public:
 		if (option == &Option::AUTO_JUMP) autoJump = !autoJump;
 		if (option == &Option::AUTOSAVE) autosave = !autosave;
 		if (option == &Option::PROCEDURAL_AUTOSAVE) proceduralAutosave = !proceduralAutosave;
+		if (option == &Option::MIP_MAPPING) mipMapping = !mipMapping;
+		if (option == &Option::FAR_TERRAIN_PREVIEW) farTerrainPreview = !farTerrainPreview;
 		if (option == &Option::ANAGLYPH) {
 			anaglyph3d = !anaglyph3d;
 			//minecraft->textures.reloadAll();
@@ -255,6 +265,7 @@ public:
 		if (item == &Option::SENSITIVITY) return sensitivity;
 		if (item == &Option::RENDER_DISTANCE) return viewDistance;
 		if (item == &Option::PIXELS_PER_MILLIMETER) return pixelsPerMillimeter;
+		if (item == &Option::FIELD_OF_VIEW) return fieldOfView;
 		return 0;
 	}
 
@@ -293,6 +304,10 @@ public:
 			return autosave;
 		if (item == &Option::PROCEDURAL_AUTOSAVE)
 			return proceduralAutosave;
+		if (item == &Option::MIP_MAPPING)
+			return mipMapping;
+		if (item == &Option::FAR_TERRAIN_PREVIEW)
+			return farTerrainPreview;
 		return false;
 	}
 
@@ -301,6 +316,7 @@ public:
 		if (item == &Option::SOUND) return SOUND_MIN_VALUE;
 		if (item == &Option::SENSITIVITY) return SENSITIVITY_MIN_VALUE;
 		if (item == &Option::PIXELS_PER_MILLIMETER) return PIXELS_PER_MILLIMETER_MIN_VALUE;
+		if (item == &Option::FIELD_OF_VIEW) return FIELD_OF_VIEW_MIN_VALUE;
 		return 0;
 	}
 
@@ -309,6 +325,7 @@ public:
 		if (item == &Option::SOUND) return SOUND_MAX_VALUE;
 		if (item == &Option::SENSITIVITY) return SENSITIVITY_MAX_VALUE;
 		if (item == &Option::PIXELS_PER_MILLIMETER) return PIXELS_PER_MILLIMETER_MAX_VALUE;
+		if (item == &Option::FIELD_OF_VIEW) return FIELD_OF_VIEW_MAX_VALUE;
 		return 1.0f;
 	}
 

@@ -1451,7 +1451,21 @@ void Minecraft::setSize(int w, int h) {
 }
 
 void Minecraft::reloadOptions() {
+	bool oldAmbientOcclusion = useAmbientOcclusion;
+#ifndef STANDALONE_SERVER
+	bool oldMipMapping = Textures::MIPMAP;
+#endif
 	options.update();
+	useAmbientOcclusion = options.ambientOcclusion;
+#ifndef STANDALONE_SERVER
+	Textures::MIPMAP = options.mipMapping;
+	if (textures && oldMipMapping != Textures::MIPMAP) {
+		textures->clear();
+		if (font) font->onGraphicsReset();
+		if (levelRenderer) levelRenderer->allChanged();
+	}
+#endif
+	if (levelRenderer && oldAmbientOcclusion != useAmbientOcclusion) levelRenderer->allChanged();
 	options.save();
 	bool wasTouchscreen = options.useTouchScreen;
 	options.useTouchScreen = useTouchscreen();
@@ -1798,9 +1812,23 @@ void Minecraft::optionUpdated( const Options::Option* option, bool value ) {
 	if (player && option == &Options::Option::AUTO_JUMP) {
 		player->autoJumpEnabled = value;
 	}
-	if (option == &Options::Option::AMBIENT_OCCLUSION && levelRenderer) {
-		levelRenderer->allChanged();
+	if (option == &Options::Option::AMBIENT_OCCLUSION) {
+		useAmbientOcclusion = value;
+		if (levelRenderer) levelRenderer->allChanged();
 	}
+#ifndef STANDALONE_SERVER
+	if (option == &Options::Option::MIP_MAPPING) {
+		Textures::MIPMAP = value;
+		if (textures) textures->clear();
+		if (font) font->onGraphicsReset();
+		if (levelRenderer) levelRenderer->allChanged();
+	}
+#endif
+#ifdef __3DS__
+	if (option == &Options::Option::FAR_TERRAIN_PREVIEW) {
+		if (levelRenderer) levelRenderer->allChanged();
+	}
+#endif
 	if (option == &Options::Option::LEFT_HANDED && inputHolder) {
 		inputHolder->onConfigChanged(createConfig(this));
 	}

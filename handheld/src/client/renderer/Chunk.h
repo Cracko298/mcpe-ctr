@@ -20,6 +20,8 @@ public:
 
     void setPos(int x, int y, int z);
 
+	void setRenderContext(const Entity* player, bool farTerrainPreview);
+	bool needsFullRebuildFor(const Entity* player) const;
 	void rebuild();
 	void setDirty();
 	void setClean();
@@ -72,6 +74,8 @@ private:
 	GLuint* vboBuffers;
 	bool compiled;
 	bool dirty;
+	bool _farTerrainPreview;
+	bool _builtWithFarTerrainPreview;
     bool _empty;
 };
 

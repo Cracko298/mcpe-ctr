@@ -33,6 +33,52 @@
 /* static */ const int LevelRenderer::CHUNK_SIZE = 16;
 #endif
 
+static bool isBetterChunkRebuildCandidate(Chunk* candidate, Chunk* current, Entity* player)
+{
+	if (candidate == NULL) return false;
+	if (current == NULL) return true;
+
+	const bool candidateFirstBuild = !candidate->isCompiled();
+	const bool currentFirstBuild = !current->isCompiled();
+	const float candidateDist = candidate->distanceToSqr(player);
+	const float currentDist = current->distanceToSqr(player);
+
+	// During render-distance increases, the dirty queue contains many chunks that
+	// have no mesh yet. Prioritize those holes by distance first, even if the
+	// frustum state is one cull update behind; otherwise outer-ring chunks can
+	// appear before closer chunks are built.
+	if (candidateFirstBuild || currentFirstBuild) {
+		if (candidateFirstBuild != currentFirstBuild)
+			return candidateFirstBuild;
+		if (candidateDist < currentDist) return true;
+		if (candidateDist > currentDist) return false;
+		if (candidate->visible != current->visible)
+			return candidate->visible;
+		return candidate->id < current->id;
+	}
+
+	// For ordinary mesh updates, visible chunks still matter more than hidden
+	// chunks, then closer chunks win.
+	if (candidate->visible != current->visible)
+		return candidate->visible;
+	if (candidateDist < currentDist) return true;
+	if (candidateDist > currentDist) return false;
+	return candidate->id < current->id;
+}
+
+static void insertChunkRebuildCandidate(Chunk** slots, int count, Chunk* chunk, Entity* player)
+{
+	for (int i = 0; i < count; i++) {
+		if (!isBetterChunkRebuildCandidate(chunk, slots[i], player))
+			continue;
+
+		for (int j = count - 1; j > i; j--)
+			slots[j] = slots[j - 1];
+		slots[i] = chunk;
+		break;
+	}
+}
+
 LevelRenderer::LevelRenderer( Minecraft* mc)
 :	mc(mc),
 	textures(mc->textures),
@@ -64,7 +110,10 @@ LevelRenderer::LevelRenderer( Minecraft* mc)
 	ticks(0),
 	skyList(0), starList(0), darkList(0),
 	tileRenderer(NULL),
-	destroyProgress(0)
+	destroyProgress(0),
+	_lightDirtyPending(false),
+	_lightDirtyX0(0), _lightDirtyY0(0), _lightDirtyZ0(0),
+	_lightDirtyX1(0), _lightDirtyY1(0), _lightDirtyZ1(0)
 {
 #ifdef OPENGL_ES
 	int maxChunksWidth = 2 * LEVEL_WIDTH / CHUNK_SIZE + 1;
@@ -201,6 +250,7 @@ void LevelRenderer::allChanged()
 	zMaxChunk = zChunks;
 	dirtyChunks.clear();
 	_priorityDirtyChunks.clear();
+	_lightDirtyPending = false;
 #ifdef __3DS__
 	dirtyChunks.reserve(chunksLength);
 	_nearChunks.reserve(64);
@@ -578,6 +628,12 @@ int LevelRenderer::renderChunks( int from, int to, int layer, float alpha )
 	if (layer == 0) {
 		for (int i = from; i < to; i++) {
 			Chunk* c = sortedChunks[i];
+#ifdef __3DS__
+			if (c->needsFullRebuildFor(player) && !c->isDirty()) {
+				c->setDirty();
+				dirtyChunks.push_back(c);
+			}
+#endif
 			totalChunks++;
 			if (c->empty[0]) { emptyChunks++; continue; }
 			if (!c->visible) { offscreenChunks++; continue; }
@@ -625,6 +681,13 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 {
 	bool slow = false;
 
+	// Light propagation can change hundreds of brightness cells in one frame.
+	// Rebuilding/dirtying around each cell individually is both expensive on O3DS
+	// and can leave smooth-light meshes visually stale until another block edit
+	// happens nearby. Coalesce those light edits into one chunk-dirty region just
+	// before the normal rebuild scheduler runs.
+	flushLightDirty();
+
 #ifdef __3DS__
 	int priorityDone = 0;
 	if (!_priorityDirtyChunks.empty()) {
@@ -636,6 +699,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 		for (int i = (int)_priorityDirtyChunks.size() - 1; i >= 0 && priorityDone < priorityBudget; i--) {
 			Chunk* chunk = _priorityDirtyChunks[i];
 			if (chunk != NULL && chunk->isDirty()) {
+				chunk->setRenderContext(player, mc->options.farTerrainPreview);
 				chunk->rebuild();
 				chunk->setClean();
 				std::vector<Chunk*>::iterator it = std::find(dirtyChunks.begin(), dirtyChunks.end(), chunk);
@@ -667,6 +731,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 			} else {
 				if (!chunk->visible) continue;
 			}
+			chunk->setRenderContext(player, mc->options.farTerrainPreview);
 			chunk->rebuild();
 
 			dirtyChunks.erase( std::find(dirtyChunks.begin(), dirtyChunks.end(), chunk) ); // @q: s-i?
@@ -689,28 +754,16 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 
 		for (int i = 0; i < pendingChunkSize; i++) {
 			Chunk* chunk = dirtyChunks[i];
+			if (chunk == NULL)
+				continue;
 
 			if (!force) {
 				if (chunk->distanceToSqr(player) > 1024.0f) {
-					int index;
-
-					// is this chunk in the closest <count>?
-					for (index = 0; index < count; index++) {
-						if (toAdd[index] != NULL && dirtyChunkSorter(toAdd[index], chunk) == false) {
-							break;
-						}
-					}
-
-					index--;
-
-					if (index > 0) {
-						int x = index;
-						while (--x != 0) {
-							toAdd[x - 1] = toAdd[x];
-						}
-						toAdd[index] = chunk;
-					}
-
+					// Outside the immediate radius, keep the best rebuild candidates
+					// explicitly sorted closest-first. The old insertion path depended
+					// on dirty queue order and could let outer chunks build before
+					// closer uncompiled chunks after changing render distance.
+					insertChunkRebuildCandidate(toAdd, count, chunk, player);
 					continue;
 				}
 			} else if (!chunk->visible) {
@@ -809,6 +862,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 					pendingChunkRemoved--;
 					continue;
 				}
+				chunk->setRenderContext(player, mc->options.farTerrainPreview);
 				chunk->rebuild();
 				chunk->setClean();
 				if (isFirstBuild) firstBuildDone++;
@@ -831,7 +885,7 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 #endif
 		if (allowSecondaryRebuilds) {
 			int secondaryDone = 0;
-			for (int i = count - 1; i >= 0; i--) {
+			for (int i = 0; i < count; i++) {
 				Chunk* chunk = toAdd[i];
 				if (chunk != NULL) {
 #ifdef __3DS__
@@ -845,14 +899,9 @@ bool LevelRenderer::updateDirtyChunks( Mob* player, bool force )
 						break;
 					}
 
-					if (!chunk->visible && i != count - 1) {
-						// escape early if chunks aren't ready
-						toAdd[i] = NULL;
-						toAdd[0] = NULL;
-						break;
-					}
-					toAdd[i]->rebuild();
-					toAdd[i]->setClean();
+					chunk->setRenderContext(player, mc->options.farTerrainPreview);
+					chunk->rebuild();
+					chunk->setClean();
 					rebuiltSecondary[secondaryRemoved] = chunk;
 					secondaryRemoved++;
 					secondaryDone++;
@@ -1028,6 +1077,83 @@ void LevelRenderer::tileChanged( int x, int y, int z)
 	setDirty(x - 1, y - 1, z - 1, x + 1, y + 1, z + 1, true);
 }
 
+void LevelRenderer::queueLightDirty( int x0, int y0, int z0, int x1, int y1, int z1 )
+{
+	if (!_lightDirtyPending) {
+		_lightDirtyPending = true;
+		_lightDirtyX0 = x0;
+		_lightDirtyY0 = y0;
+		_lightDirtyZ0 = z0;
+		_lightDirtyX1 = x1;
+		_lightDirtyY1 = y1;
+		_lightDirtyZ1 = z1;
+		return;
+	}
+
+	int nx0 = x0 < _lightDirtyX0 ? x0 : _lightDirtyX0;
+	int ny0 = y0 < _lightDirtyY0 ? y0 : _lightDirtyY0;
+	int nz0 = z0 < _lightDirtyZ0 ? z0 : _lightDirtyZ0;
+	int nx1 = x1 > _lightDirtyX1 ? x1 : _lightDirtyX1;
+	int ny1 = y1 > _lightDirtyY1 ? y1 : _lightDirtyY1;
+	int nz1 = z1 > _lightDirtyZ1 ? z1 : _lightDirtyZ1;
+
+	// If two unrelated light updates arrive in the same frame, a single huge
+	// bounding box would dirty all chunks between them. Flush the current batch
+	// first once it would cover too many chunk sections.
+	int cx0 = Mth::intFloorDiv(nx0, CHUNK_SIZE);
+	int cy0 = Mth::intFloorDiv(ny0, CHUNK_SIZE);
+	int cz0 = Mth::intFloorDiv(nz0, CHUNK_SIZE);
+	int cx1 = Mth::intFloorDiv(nx1, CHUNK_SIZE);
+	int cy1 = Mth::intFloorDiv(ny1, CHUNK_SIZE);
+	int cz1 = Mth::intFloorDiv(nz1, CHUNK_SIZE);
+	int chunkVolume = (cx1 - cx0 + 1) * (cy1 - cy0 + 1) * (cz1 - cz0 + 1);
+	if (chunkVolume > 64) {
+		flushLightDirty();
+		_lightDirtyPending = true;
+		_lightDirtyX0 = x0;
+		_lightDirtyY0 = y0;
+		_lightDirtyZ0 = z0;
+		_lightDirtyX1 = x1;
+		_lightDirtyY1 = y1;
+		_lightDirtyZ1 = z1;
+		return;
+	}
+
+	_lightDirtyX0 = nx0;
+	_lightDirtyY0 = ny0;
+	_lightDirtyZ0 = nz0;
+	_lightDirtyX1 = nx1;
+	_lightDirtyY1 = ny1;
+	_lightDirtyZ1 = nz1;
+}
+
+void LevelRenderer::flushLightDirty()
+{
+	if (!_lightDirtyPending) return;
+	int x0 = _lightDirtyX0;
+	int y0 = _lightDirtyY0;
+	int z0 = _lightDirtyZ0;
+	int x1 = _lightDirtyX1;
+	int y1 = _lightDirtyY1;
+	int z1 = _lightDirtyZ1;
+	_lightDirtyPending = false;
+
+	if (chunks == NULL || chunksLength <= 0) return;
+	// Keep the coalesced light region prioritized so visible smooth-light changes
+	// catch up without needing a nearby block placement to force a rebuild.
+	setDirty(x0, y0, z0, x1, y1, z1, true);
+}
+
+void LevelRenderer::tileBrightnessChanged( int x, int y, int z )
+{
+	// Smooth lighting samples neighboring brightness values, including edges and
+	// corners, so the mesh affected by one light-cell change is wider than the
+	// cell itself. Batch it; do not push it through tileChanged(), because that
+	// treats every brightness nibble like a high-priority block edit.
+	const int r = Minecraft::useAmbientOcclusion ? 2 : 1;
+	queueLightDirty(x - r, y - r, z - r, x + r, y + r, z + r);
+}
+
 
 void LevelRenderer::setTilesDirty( int x0, int y0, int z0, int x1, int y1, int z1 )
 {
@@ -1038,11 +1164,11 @@ void LevelRenderer::setTilesDirty( int x0, int y0, int z0, int x1, int y1, int z
 void LevelRenderer::cull( Culler* culler, float a )
 {
 #ifdef __3DS__
-	// На 3DS frustum-cull всех чанков (xChunks*yChunks*zChunks ~= 128+ на
-	// viewDistance=3) — заметный кусок CPU. Делаем cull через кадр: одна
-	// видимость живёт максимум 2 кадра, для 30 FPS это 66ms задержки появления
-	// нового видимого чанка — незаметно. Работает на ОБЕИХ 3DS.
-	if (cullStep & 1) {
+	// Frustum-culling every chunk is a noticeable CPU slice. N3DS keeps the
+	// previous every-other-frame cadence; O3DS does it every third frame. The
+	// world fog now hides the tiny visibility delay at the far edge.
+	const int cullDivisor = IsNew3DS() ? 2 : 3;
+	if ((cullStep % cullDivisor) != 0) {
 		cullStep++;
 		return;
 	}
