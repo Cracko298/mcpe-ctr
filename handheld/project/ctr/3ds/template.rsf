@@ -50,7 +50,7 @@ AccessControlInfo:
    #- CategorySystemSettings
    #- CardBoard
    #- ExportImportIvs
-   #- DirectSdmcWrite
+   - DirectSdmcWrite
    #- SwitchCleanup
    #- SaveDataMove
    #- Shop
@@ -73,7 +73,7 @@ AccessControlInfo:
   PermitMainFunctionArgument    : true
   CanShareDeviceMemory          : true
   RunnableOnSleep               : false
-  SpecialMemoryArrange          : true
+  SpecialMemoryArrange          : false
 
   # New3DS Exclusive Process Settings
   SystemModeExt                 : $(APP_SYSTEM_MODE_EXT) # Legacy(Default)/124MB/178MB  Legacy:Use Old3DS SystemMode
