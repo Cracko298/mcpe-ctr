@@ -24,9 +24,6 @@ static bool g_externalFileLazySDSavesEnabled = true;
 static const RakNet::TimeMS AutosaveIntervalMs = 20 * 60 * 1000;
 
 // 3DS SD writes can steal noticeable time from the render loop.  Lazy SD Saves
-// keeps autosave ON, but spreads scans/writes farther apart so one dirty chunk
-// is handled in smaller, less frequent pieces.  Turning the option OFF restores
-// the previous cadence.
 static RakNet::TimeMS getAutosaveChunkWriteSpacingMs() { return g_externalFileLazySDSavesEnabled ? 2000 : 1000; }
 static RakNet::TimeMS getProceduralChunkWriteSpacingMs() { return g_externalFileLazySDSavesEnabled ? 30000 : 15000; }
 static RakNet::TimeMS getProceduralChunkMinAgeMs() { return g_externalFileLazySDSavesEnabled ? 60000 : 30000; }
