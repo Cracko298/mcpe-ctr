@@ -1,6 +1,7 @@
 #if !defined(DEMO_MODE) && !defined(APPLE_DEMO_PROMOTION)
 
 #include "LevelData.h"
+#include "ExternalFileLevelStorageSource.h"
 #include "RegionFile.h"
 #include "ExternalFileLevelStorage.h"
 #include "FolderMethods.h"
