@@ -196,6 +196,8 @@ void OptionsScreen::generateOptionScreens() {
 			.addOptionItem(&Options::Option::AMBIENT_OCCLUSION, minecraft)
 			.addOptionItem(&Options::Option::MIP_MAPPING, minecraft)
 			.addOptionItem(&Options::Option::FAR_TERRAIN_PREVIEW, minecraft)
+			.addOptionItem(&Options::Option::HALF_RESOLUTION, minecraft)
+			.addOptionItem(&Options::Option::SOFT_ANTIALIAS, minecraft)
 			.addOptionItem(&Options::Option::VIEW_BOBBING, minecraft)
 			.addOptionItem(&Options::Option::ANAGLYPH, minecraft)
 			.addOptionItem(&Options::Option::LIMIT_FRAMERATE, minecraft);
@@ -206,7 +208,8 @@ void OptionsScreen::generateOptionScreens() {
 			.addOptionItem(&Options::Option::HIDE_GUI, minecraft)
 			.addOptionItem(&Options::Option::SERVER_VISIBLE, minecraft)
 			.addOptionItem(&Options::Option::AUTOSAVE, minecraft)
-			.addOptionItem(&Options::Option::PROCEDURAL_AUTOSAVE, minecraft);
+			.addOptionItem(&Options::Option::PROCEDURAL_AUTOSAVE, minecraft)
+			.addOptionItem(&Options::Option::LAZY_SD_SAVES, minecraft);
 	} else if (currentPage == 2) {
 		optionPane->createOptionsGroup("options.group.control")
 			.addOptionItem(&Options::Option::SENSITIVITY, minecraft)

@@ -99,5 +99,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MCPE-3DS-Builds
-          path: build/*.cia
+          path: |
+            build/*.cia
+            build/*.3dsx
+            build/*.elf
+            build/*.map
+            build/minecraftcpp_symbols.elf
           if-no-files-found: error

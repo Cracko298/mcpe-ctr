@@ -85,7 +85,7 @@ AccessControlInfo:
   IORegisterMapping:
    - 1ff00000-1ff7ffff   # DSP memory
   MemoryMapping: 
-   - 1f000000-1f5fffff:r # VRAM
+   - 1f000000-1f5fffff # VRAM
 
   # Accessible SVCs, <Name>:<ID>
   SystemCallAccess: 

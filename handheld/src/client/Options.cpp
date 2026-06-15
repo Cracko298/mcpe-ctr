@@ -9,6 +9,7 @@
 
 void setExternalFileAutosaveEnabled(bool enabled);
 void setExternalFileProceduralAutosaveEnabled(bool enabled);
+void setExternalFileLazySDSavesEnabled(bool enabled);
 
 /*static*/
 bool Options::debugGl = false;
@@ -36,6 +37,7 @@ void Options::initDefaultValues() {
 	autoJump = true;
 	autosave = true;
 	proceduralAutosave = true;
+	lazySDSaves = true;
 
 	music = 1.0f;
 	sound = 1.0f;
@@ -53,10 +55,14 @@ void Options::initDefaultValues() {
 	ambientOcclusion = false;
 	mipMapping = false;
 #ifdef __3DS__
-	farTerrainPreview = true;
+	// Far preview adds rebuild cost and extra preview geometry on the weakest GPU,
+	// so default it OFF. Players can still enable it manually.
+	farTerrainPreview = false;
 #else
 	farTerrainPreview = false;
 #endif
+	halfResolution = false;
+	softAntialias = false;
 	if(minecraft->supportNonTouchScreen())
 		useTouchScreen = false;
 	else
@@ -67,7 +73,7 @@ void Options::initDefaultValues() {
 
 	//skin     = "Default";
 	username = minecraft->platform()->defaultUsername();
-	serverVisible = true;
+	serverVisible = false;
 
 	keyUp	 = KeyMapping("key.forward", Keyboard::KEY_W);
 	keyLeft  = KeyMapping("key.left", Keyboard::KEY_A);
@@ -181,7 +187,10 @@ Options::Option::AUTOSAVE			  (23, "Autosave", false, true),
 Options::Option::PROCEDURAL_AUTOSAVE (24, "Gradual Save", false, true),
 Options::Option::FIELD_OF_VIEW       (25, "options.fov", true, false),
 Options::Option::MIP_MAPPING         (26, "Mip Mapping", false, true),
-Options::Option::FAR_TERRAIN_PREVIEW (27, "Far Terrain Preview", false, true);
+Options::Option::FAR_TERRAIN_PREVIEW (27, "Far Terrain Preview", false, true),
+Options::Option::HALF_RESOLUTION     (28, "Half Resolution", false, true),
+Options::Option::SOFT_ANTIALIAS      (29, "Soft AA", false, true),
+Options::Option::LAZY_SD_SAVES       (30, "Lazy SD Saves", false, true);
 
 const float Options::SOUND_MIN_VALUE = 0.0f;
 const float Options::SOUND_MAX_VALUE = 1.0f;
@@ -252,10 +261,15 @@ void Options::update() {
 	fieldOfView = 70.0f;
 	mipMapping = false;
 #ifdef __3DS__
-	farTerrainPreview = true;
+	// Far preview adds rebuild cost and extra preview geometry on the weakest GPU,
+	// so default it OFF. Players can still enable it manually.
+	farTerrainPreview = false;
 #else
 	farTerrainPreview = false;
 #endif
+	halfResolution = false;
+	softAntialias = false;
+	lazySDSaves = false;
 	StringVector optionStrings = optionsFile.getOptionStrings();
 	for (unsigned int i = 0; i < optionStrings.size(); i += 2) {
 		const std::string& key = optionStrings[i];
@@ -295,6 +309,9 @@ void Options::update() {
 		if (key == OptionStrings::Game_ProceduralAutosave) {
 			readBool(value, proceduralAutosave);
 		}
+		if (key == OptionStrings::Game_LazySDSaves) {
+			readBool(value, lazySDSaves);
+		}
 
 		// Feedback
 		if (key == OptionStrings::Controls_FeedbackVibration)
@@ -328,6 +345,8 @@ void Options::update() {
 		if (key == OptionStrings::Graphics_FieldOfView) readFloat(value, fieldOfView);
 		if (key == OptionStrings::Graphics_MipMapping) readBool(value, mipMapping);
 		if (key == OptionStrings::Graphics_FarTerrainPreview) readBool(value, farTerrainPreview);
+		if (key == OptionStrings::Graphics_HalfResolution) readBool(value, halfResolution);
+		if (key == OptionStrings::Graphics_SoftAntialias) readBool(value, softAntialias);
 		if (key == OptionStrings::Audio_Music) readFloat(value, music);
 		if (key == OptionStrings::Audio_Sound) readFloat(value, sound);
 		if (key == OptionStrings::Game_HideGui) readBool(value, hideGui);
@@ -341,6 +360,7 @@ void Options::update() {
 	if (fieldOfView > FIELD_OF_VIEW_MAX_VALUE) fieldOfView = FIELD_OF_VIEW_MAX_VALUE;
 	setExternalFileAutosaveEnabled(autosave);
 	setExternalFileProceduralAutosaveEnabled(proceduralAutosave);
+	setExternalFileLazySDSavesEnabled(lazySDSaves);
 }
 
 void Options::load() {
@@ -368,6 +388,8 @@ void Options::save() {
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_FieldOfView, fieldOfView);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_MipMapping, mipMapping);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_FarTerrainPreview, farTerrainPreview);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_HalfResolution, halfResolution);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_SoftAntialias, softAntialias);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Fancy, fancyGraphics);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_AmbientOcclusion, ambientOcclusion);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Anaglyph3d, anaglyph3d);
@@ -382,10 +404,12 @@ void Options::save() {
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_ViewBobbing, bobView);
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_Autosave, autosave);
 	addOptionToSaveOutput(stringVec, OptionStrings::Game_ProceduralAutosave, proceduralAutosave);
+	addOptionToSaveOutput(stringVec, OptionStrings::Game_LazySDSaves, lazySDSaves);
 
 	optionsFile.save(stringVec);
 	setExternalFileAutosaveEnabled(autosave);
 	setExternalFileProceduralAutosaveEnabled(proceduralAutosave);
+	setExternalFileLazySDSavesEnabled(lazySDSaves);
 }
 
 void Options::addOptionToSaveOutput(StringVector& stringVector, std::string name, bool boolValue) {
