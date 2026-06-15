@@ -290,7 +290,9 @@ int main(int argc, char** argv) {
 
         CtrFrameTiming::endFrame();
 
-        if (frameCounter % 60 == 0) {
+        // Console/log I/O every second is surprisingly visible on old 3DS.
+        // Keep the memory dump available, but only while the debug overlay is enabled.
+        if (mc && mc->options.renderDebug && (frameCounter % 120 == 0)) {
             printMemoryStats();
         }
         frameCounter++;
