@@ -1164,25 +1164,11 @@ void LevelRenderer::setTilesDirty( int x0, int y0, int z0, int x1, int y1, int z
 void LevelRenderer::cull( Culler* culler, float a )
 {
 #ifdef __3DS__
-	static float lastRotY = -999.0f;
-	static float lastRotX = -999.0f;
-	
-	bool forceCull = g_stereoNativeActive;
-	Mob* player = mc->cameraTargetPlayer;
-	if (player != NULL && !forceCull) {
-		float dy = player->yRot - lastRotY;
-		float dx = player->xRot - lastRotX;
-		if (dy * dy + dx * dx > 1.0f) {
-			forceCull = true;
-			lastRotY = player->yRot;
-			lastRotX = player->xRot;
-		}
-	}
-
 	// Frustum-culling every chunk is a noticeable CPU slice. N3DS keeps the
-	// previous every-other-frame cadence; O3DS does it every third frame.
+	// previous every-other-frame cadence; O3DS does it every third frame. The
+	// world fog now hides the tiny visibility delay at the far edge.
 	const int cullDivisor = IsNew3DS() ? 2 : 3;
-	if (!forceCull && (cullStep % cullDivisor) != 0) {
+	if ((cullStep % cullDivisor) != 0) {
 		cullStep++;
 		return;
 	}
