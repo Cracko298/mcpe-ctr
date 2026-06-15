@@ -73,7 +73,7 @@ void Options::initDefaultValues() {
 
 	//skin     = "Default";
 	username = minecraft->platform()->defaultUsername();
-	serverVisible = false;
+	serverVisible = true;
 
 	keyUp	 = KeyMapping("key.forward", Keyboard::KEY_W);
 	keyLeft  = KeyMapping("key.left", Keyboard::KEY_A);
@@ -269,7 +269,7 @@ void Options::update() {
 #endif
 	halfResolution = false;
 	softAntialias = false;
-	lazySDSaves = false;
+	lazySDSaves = true;
 	StringVector optionStrings = optionsFile.getOptionStrings();
 	for (unsigned int i = 0; i < optionStrings.size(); i += 2) {
 		const std::string& key = optionStrings[i];

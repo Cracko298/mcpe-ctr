@@ -61,6 +61,7 @@ static const int kHalfTopTexWidth = 256;
 static const int kHalfTopTexHeight = 128;
 static GLuint s_lowResTopTex = 0;
 static GLuint s_lowResTopFbo = 0;
+static GLuint s_lowResDepthRb = 0;
 static int s_lowResTopW = 0;
 static int s_lowResTopH = 0;
 static int s_worldViewportW3ds = 0;
@@ -75,18 +76,53 @@ static bool ensureLowResTopTarget3ds() {
 		s_lowResTopW == kHalfTopTexWidth && s_lowResTopH == kHalfTopTexHeight)
 		return true;
 
+	if (s_lowResTopTex != 0) glDeleteTextures(1, &s_lowResTopTex);
+	if (s_lowResDepthRb != 0) glDeleteRenderbuffers(1, &s_lowResDepthRb);
+	if (s_lowResTopFbo != 0) glDeleteFramebuffers(1, &s_lowResTopFbo);
 	s_lowResTopTex = 0;
+	s_lowResDepthRb = 0;
 	s_lowResTopFbo = 0;
 	s_lowResTopW = 0;
 	s_lowResTopH = 0;
 
-	// Allocate a POT render target, but render into only 200x120 via viewport.
-	novaCreateRenderTextureFBO(kHalfTopTexWidth, kHalfTopTexHeight, 1, &s_lowResTopTex, &s_lowResTopFbo);
-	if (s_lowResTopTex == 0 || s_lowResTopFbo == 0) {
+	// Do NOT use novaCreateRenderTextureFBO here.  On this title/RSF it can
+	// CPU-clear a VRAM allocation at 0x1Fxxxxxx and data-abort before we can
+	// recover.  This stock GL path allocates the texture through NovaGL's normal
+	// linear texture path instead, so it is slower/less ideal than a VRAM target
+	// but much safer to test on hardware.
+	glGenTextures(1, &s_lowResTopTex);
+	glBindTexture2(GL_TEXTURE_2D, s_lowResTopTex);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kHalfTopTexWidth, kHalfTopTexHeight,
+		0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+	glGenFramebuffers(1, &s_lowResTopFbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, s_lowResTopFbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s_lowResTopTex, 0);
+
+	glGenRenderbuffers(1, &s_lowResDepthRb);
+	glBindRenderbuffer(GL_RENDERBUFFER, s_lowResDepthRb);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, kHalfTopTexWidth, kHalfTopTexHeight);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, s_lowResDepthRb);
+
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		if (s_lowResTopTex != 0) glDeleteTextures(1, &s_lowResTopTex);
+		if (s_lowResDepthRb != 0) glDeleteRenderbuffers(1, &s_lowResDepthRb);
+		if (s_lowResTopFbo != 0) glDeleteFramebuffers(1, &s_lowResTopFbo);
+		s_lowResTopTex = 0;
+		s_lowResDepthRb = 0;
+		s_lowResTopFbo = 0;
 		s_lowResUnavailable3ds = true;
+		nova_set_render_target(kTopRenderTarget);
+		nova_invalidate_state_cache();
 		return false;
 	}
 
+	nova_set_render_target(kTopRenderTarget);
+	nova_invalidate_state_cache();
 	s_lowResTopW = kHalfTopTexWidth;
 	s_lowResTopH = kHalfTopTexHeight;
 	return true;
@@ -1381,6 +1417,7 @@ void GameRenderer::onGraphicsReset()
 	// They will be recreated lazily the next time Half Resolution is used.
 	s_lowResTopTex = 0;
 	s_lowResTopFbo = 0;
+	s_lowResDepthRb = 0;
 	s_lowResTopW = 0;
 	s_lowResTopH = 0;
 	s_worldViewportW3ds = 0;
