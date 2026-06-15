@@ -19,11 +19,17 @@ static const int ChunkVersion_Entity = 2;
 
 static bool g_externalFileAutosaveEnabled = true;
 static bool g_externalFileProceduralAutosaveEnabled = true;
+static bool g_externalFileLazySDSavesEnabled = true;
 static const RakNet::TimeMS AutosaveIntervalMs = 20 * 60 * 1000;
-static const RakNet::TimeMS AutosaveChunkWriteSpacingMs = 1000;
-static const RakNet::TimeMS ProceduralChunkWriteSpacingMs = 15000;
-static const RakNet::TimeMS ProceduralChunkMinAgeMs = 30000;
-static const int AutosaveScanPerTick = 4;
+
+// 3DS SD writes can steal noticeable time from the render loop.  Lazy SD Saves
+// keeps autosave ON, but spreads scans/writes farther apart so one dirty chunk
+// is handled in smaller, less frequent pieces.  Turning the option OFF restores
+// the previous cadence.
+static RakNet::TimeMS getAutosaveChunkWriteSpacingMs() { return g_externalFileLazySDSavesEnabled ? 2000 : 1000; }
+static RakNet::TimeMS getProceduralChunkWriteSpacingMs() { return g_externalFileLazySDSavesEnabled ? 30000 : 15000; }
+static RakNet::TimeMS getProceduralChunkMinAgeMs() { return g_externalFileLazySDSavesEnabled ? 60000 : 30000; }
+static int getAutosaveScanPerTick() { return g_externalFileLazySDSavesEnabled ? 1 : 4; }
 
 void setExternalFileAutosaveEnabled(bool enabled)
 {
@@ -43,6 +49,16 @@ void setExternalFileProceduralAutosaveEnabled(bool enabled)
 bool isExternalFileProceduralAutosaveEnabled()
 {
 	return g_externalFileProceduralAutosaveEnabled;
+}
+
+void setExternalFileLazySDSavesEnabled(bool enabled)
+{
+	g_externalFileLazySDSavesEnabled = enabled;
+}
+
+bool isExternalFileLazySDSavesEnabled()
+{
+	return g_externalFileLazySDSavesEnabled;
 }
 
 const char* const fnLevelDatOld = "level.dat_old";
@@ -375,15 +391,15 @@ void ExternalFileLevelStorage::tick()
 		return;
 	}
 
-	scanUnsavedChunks(AutosaveScanPerTick, now);
+	scanUnsavedChunks(getAutosaveScanPerTick(), now);
 
 	if (g_externalFileProceduralAutosaveEnabled)
 	{
 		autosaveFlushActive = false;
-		if (now - lastChunkSaveMs >= ProceduralChunkWriteSpacingMs)
+		if (now - lastChunkSaveMs >= getProceduralChunkWriteSpacingMs())
 		{
 			lastChunkSaveMs = now;
-			savePendingUnsavedChunks(1, ProceduralChunkMinAgeMs);
+			savePendingUnsavedChunks(1, getProceduralChunkMinAgeMs());
 		}
 		if (now - lastAutosaveMs >= AutosaveIntervalMs)
 		{
@@ -401,7 +417,7 @@ void ExternalFileLevelStorage::tick()
 		autosaveFlushActive = true;
 		lastAutosaveMs = now;
 	}
-	if (autosaveFlushActive && now - lastChunkSaveMs >= AutosaveChunkWriteSpacingMs)
+	if (autosaveFlushActive && now - lastChunkSaveMs >= getAutosaveChunkWriteSpacingMs())
 	{
 		lastChunkSaveMs = now;
 		if (savePendingUnsavedChunks(1, 0) == 0)
