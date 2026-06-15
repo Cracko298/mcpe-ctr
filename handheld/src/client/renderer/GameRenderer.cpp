@@ -51,29 +51,44 @@ static const int kBottomScreenHeight = NOVA_SCREEN_BOTTOM_W;
 
 // Optional low-res world target.  The HUD/menus still draw at native size; only
 // the expensive 3D world pass is rendered at 200x120 and then upscaled.
+//
+// The actual texture/FBO is power-of-two (256x128) even though the visible
+// render area is 200x120.  Real 3DS/NovaGL is much happier with POT render
+// textures than arbitrary 200x120 targets.  We sample only the used region.
 static const int kHalfTopWidth = NOVA_SCREEN_W / 2;
 static const int kHalfTopHeight = NOVA_SCREEN_H / 2;
+static const int kHalfTopTexWidth = 256;
+static const int kHalfTopTexHeight = 128;
 static GLuint s_lowResTopTex = 0;
 static GLuint s_lowResTopFbo = 0;
 static int s_lowResTopW = 0;
 static int s_lowResTopH = 0;
 static int s_worldViewportW3ds = 0;
 static int s_worldViewportH3ds = 0;
+static bool s_renderingLowResFbo3ds = false;
+static bool s_lowResUnavailable3ds = false;
 
-static bool ensureLowResTopTarget3ds(int w, int h) {
-	if (s_lowResTopTex != 0 && s_lowResTopFbo != 0 && s_lowResTopW == w && s_lowResTopH == h)
+static bool ensureLowResTopTarget3ds() {
+	if (s_lowResUnavailable3ds)
+		return false;
+	if (s_lowResTopTex != 0 && s_lowResTopFbo != 0 &&
+		s_lowResTopW == kHalfTopTexWidth && s_lowResTopH == kHalfTopTexHeight)
 		return true;
 
 	s_lowResTopTex = 0;
 	s_lowResTopFbo = 0;
 	s_lowResTopW = 0;
 	s_lowResTopH = 0;
-	novaCreateRenderTextureFBO(w, h, 1, &s_lowResTopTex, &s_lowResTopFbo);
-	if (s_lowResTopTex == 0 || s_lowResTopFbo == 0)
-		return false;
 
-	s_lowResTopW = w;
-	s_lowResTopH = h;
+	// Allocate a POT render target, but render into only 200x120 via viewport.
+	novaCreateRenderTextureFBO(kHalfTopTexWidth, kHalfTopTexHeight, 1, &s_lowResTopTex, &s_lowResTopFbo);
+	if (s_lowResTopTex == 0 || s_lowResTopFbo == 0) {
+		s_lowResUnavailable3ds = true;
+		return false;
+	}
+
+	s_lowResTopW = kHalfTopTexWidth;
+	s_lowResTopH = kHalfTopTexHeight;
 	return true;
 }
 
@@ -82,6 +97,8 @@ static void setLowResTopFilter3ds(bool soft) {
 	glBindTexture2(GL_TEXTURE_2D, s_lowResTopTex);
 	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, soft ? GL_LINEAR : GL_NEAREST);
 	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, soft ? GL_LINEAR : GL_NEAREST);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 #endif
 
@@ -448,29 +465,58 @@ void GameRenderer::renderLevelTop3ds(float a) {
 		return;
 	}
 
-	if (!ensureLowResTopTarget3ds(kHalfTopWidth, kHalfTopHeight)) {
+	if (!ensureLowResTopTarget3ds()) {
 		renderLevel(a);
 		return;
 	}
 
-	// Render the world into the smaller offscreen target.  renderLevel() reads
-	// s_worldViewport* so its viewport matches the FBO instead of the full screen.
-	nova_set_render_target(kTopRenderTarget);
+	// Render the world into a private POT FBO.  The previous version bound the
+	// 200x120 FBO but renderLevel() immediately called nova_set_render_target(0),
+	// which kicked rendering back to the top screen.  This flag keeps renderLevel()
+	// from touching NovaGL's eye targets while the offscreen pass is active.
 	glBindFramebuffer(GL_FRAMEBUFFER, s_lowResTopFbo);
+	nova_invalidate_state_cache();
 	setLowResTopFilter3ds(mc->options.softAntialias);
+	s_renderingLowResFbo3ds = true;
 	s_worldViewportW3ds = kHalfTopWidth;
 	s_worldViewportH3ds = kHalfTopHeight;
 	renderLevel(a);
 	s_worldViewportW3ds = 0;
 	s_worldViewportH3ds = 0;
+	s_renderingLowResFbo3ds = false;
 
-	// Blit/upscale into the native top-screen target.  Soft AA is just bilinear
-	// filtering on that blit, so it avoids a second geometry pass or MSAA target.
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	// Restore the real top target through NovaGL instead of binding FBO 0.
+	// Then draw one textured full-screen quad.  This avoids novaBlitTargetToFBO(),
+	// which was the crash-prone part on hardware.
 	nova_set_render_target(kTopRenderTarget);
-	glViewport(0, 0, mc->width, mc->height);
-	novaBlitTargetToFBO(s_lowResTopFbo, 0);
 	nova_invalidate_state_cache();
+	glViewport(0, 0, mc->width, mc->height);
+	setupGuiScreen(true, mc->width, mc->height);
+
+	glDisable2(GL_DEPTH_TEST);
+	glDisable2(GL_CULL_FACE);
+	glDisable2(GL_FOG);
+	glDisable2(GL_BLEND);
+	glDisable2(GL_ALPHA_TEST);
+	glEnable2(GL_TEXTURE_2D);
+	setLowResTopFilter3ds(mc->options.softAntialias);
+
+	const float uMax = (float)kHalfTopWidth / (float)kHalfTopTexWidth;
+	const float vMax = (float)kHalfTopHeight / (float)kHalfTopTexHeight;
+	const float guiW = (float)((int)(mc->width * Gui::InvGuiScale));
+	const float guiH = (float)((int)(mc->height * Gui::InvGuiScale));
+
+	Tesselator& t = Tesselator::instance;
+	t.begin();
+	t.color(0xffffffff);
+	t.vertexUV(0,    guiH, 0, 0,    vMax);
+	t.vertexUV(guiW, guiH, 0, uMax, vMax);
+	t.vertexUV(guiW, 0,    0, uMax, 0);
+	t.vertexUV(0,    0,    0, 0,    0);
+	t.draw();
+
+	glEnable2(GL_ALPHA_TEST);
+	glEnable2(GL_DEPTH_TEST);
 }
 #endif
 
@@ -508,7 +554,7 @@ void GameRenderer::renderLevel(float a) {
         }
 
 #ifdef __3DS__
-        if (g_stereoNativeActive) {
+        if (g_stereoNativeActive && !s_renderingLowResFbo3ds) {
             novaBeginEye(i);
             nova_set_render_target(i);
         }
@@ -1339,6 +1385,8 @@ void GameRenderer::onGraphicsReset()
 	s_lowResTopH = 0;
 	s_worldViewportW3ds = 0;
 	s_worldViewportH3ds = 0;
+	s_renderingLowResFbo3ds = false;
+	s_lowResUnavailable3ds = false;
 #endif
 }
 
