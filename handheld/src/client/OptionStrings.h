@@ -16,6 +16,8 @@ public:
     static const char* Graphics_FieldOfView;
     static const char* Graphics_MipMapping;
     static const char* Graphics_FarTerrainPreview;
+    static const char* Graphics_HalfResolution;
+    static const char* Graphics_SoftAntialias;
 
     static const char* Controls_Sensitivity;
     static const char* Controls_InvertMouse;
@@ -32,6 +34,7 @@ public:
     static const char* Game_ViewBobbing;
 	static const char* Game_Autosave;
 	static const char* Game_ProceduralAutosave;
+	static const char* Game_LazySDSaves;
 
     static const char* Audio_Music;
     static const char* Audio_Sound;

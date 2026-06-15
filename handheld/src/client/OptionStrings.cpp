@@ -13,6 +13,8 @@ const char* OptionStrings::Graphics_Debug              = "gfx_debug";
 const char* OptionStrings::Graphics_FieldOfView        = "gfx_fov";
 const char* OptionStrings::Graphics_MipMapping         = "gfx_mipmapping";
 const char* OptionStrings::Graphics_FarTerrainPreview  = "gfx_far_terrain_preview";
+const char* OptionStrings::Graphics_HalfResolution      = "gfx_half_resolution";
+const char* OptionStrings::Graphics_SoftAntialias       = "gfx_soft_antialias";
 
 const char* OptionStrings::Controls_Sensitivity        = "ctrl_sensitivity";
 const char* OptionStrings::Controls_InvertMouse        = "ctrl_invertmouse";
@@ -29,6 +31,7 @@ const char* OptionStrings::Game_ThirdPersonView = "game_thirdpersonview";
 const char* OptionStrings::Game_ViewBobbing = "game_viewbobbing";
 const char* OptionStrings::Game_Autosave = "game_autosave";
 const char* OptionStrings::Game_ProceduralAutosave = "game_procedural_autosave";
+const char* OptionStrings::Game_LazySDSaves = "game_lazy_sd_saves";
 
 const char* OptionStrings::Audio_Music = "audio_music";
 const char* OptionStrings::Audio_Sound = "audio_sound";

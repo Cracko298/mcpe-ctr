@@ -48,6 +48,41 @@ static const int kBottomRenderTarget = 2;
 // NovaGL names the bottom framebuffer dimensions in its rotated layout.
 static const int kBottomScreenWidth = NOVA_SCREEN_BOTTOM_H;
 static const int kBottomScreenHeight = NOVA_SCREEN_BOTTOM_W;
+
+// Optional low-res world target.  The HUD/menus still draw at native size; only
+// the expensive 3D world pass is rendered at 200x120 and then upscaled.
+static const int kHalfTopWidth = NOVA_SCREEN_W / 2;
+static const int kHalfTopHeight = NOVA_SCREEN_H / 2;
+static GLuint s_lowResTopTex = 0;
+static GLuint s_lowResTopFbo = 0;
+static int s_lowResTopW = 0;
+static int s_lowResTopH = 0;
+static int s_worldViewportW3ds = 0;
+static int s_worldViewportH3ds = 0;
+
+static bool ensureLowResTopTarget3ds(int w, int h) {
+	if (s_lowResTopTex != 0 && s_lowResTopFbo != 0 && s_lowResTopW == w && s_lowResTopH == h)
+		return true;
+
+	s_lowResTopTex = 0;
+	s_lowResTopFbo = 0;
+	s_lowResTopW = 0;
+	s_lowResTopH = 0;
+	novaCreateRenderTextureFBO(w, h, 1, &s_lowResTopTex, &s_lowResTopFbo);
+	if (s_lowResTopTex == 0 || s_lowResTopFbo == 0)
+		return false;
+
+	s_lowResTopW = w;
+	s_lowResTopH = h;
+	return true;
+}
+
+static void setLowResTopFilter3ds(bool soft) {
+	if (s_lowResTopTex == 0) return;
+	glBindTexture2(GL_TEXTURE_2D, s_lowResTopTex);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, soft ? GL_LINEAR : GL_NEAREST);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, soft ? GL_LINEAR : GL_NEAREST);
+}
 #endif
 
 GameRenderer::GameRenderer( Minecraft* mc )
@@ -310,7 +345,7 @@ void GameRenderer::renderDualScreen3ds(float a) {
 	if (mc->isLevelGenerated()) {
 		TIMER_PUSH("level");
 		if (_t_keepPic < 0) {
-			renderLevel(a);
+			renderLevelTop3ds(a);
 		}
 		TIMER_POP();
 
@@ -403,6 +438,42 @@ void GameRenderer::renderDualScreen3ds(float a) {
 }
 #endif
 
+#ifdef __3DS__
+void GameRenderer::renderLevelTop3ds(float a) {
+	const bool nativeStereo = (g_stereoNativeActive && g_stereoEyeCount > 1);
+	const bool lowResWorld = mc->options.halfResolution && !mc->options.anaglyph3d && !nativeStereo;
+
+	if (!lowResWorld) {
+		renderLevel(a);
+		return;
+	}
+
+	if (!ensureLowResTopTarget3ds(kHalfTopWidth, kHalfTopHeight)) {
+		renderLevel(a);
+		return;
+	}
+
+	// Render the world into the smaller offscreen target.  renderLevel() reads
+	// s_worldViewport* so its viewport matches the FBO instead of the full screen.
+	nova_set_render_target(kTopRenderTarget);
+	glBindFramebuffer(GL_FRAMEBUFFER, s_lowResTopFbo);
+	setLowResTopFilter3ds(mc->options.softAntialias);
+	s_worldViewportW3ds = kHalfTopWidth;
+	s_worldViewportH3ds = kHalfTopHeight;
+	renderLevel(a);
+	s_worldViewportW3ds = 0;
+	s_worldViewportH3ds = 0;
+
+	// Blit/upscale into the native top-screen target.  Soft AA is just bilinear
+	// filtering on that blit, so it avoids a second geometry pass or MSAA target.
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	nova_set_render_target(kTopRenderTarget);
+	glViewport(0, 0, mc->width, mc->height);
+	novaBlitTargetToFBO(s_lowResTopFbo, 0);
+	nova_invalidate_state_cache();
+}
+#endif
+
 /*public*/
 void GameRenderer::renderLevel(float a) {
 
@@ -444,7 +515,13 @@ void GameRenderer::renderLevel(float a) {
 #endif
 
 		TIMER_POP_PUSH("clear");
+#ifdef __3DS__
+		const int worldViewportW = (s_worldViewportW3ds > 0) ? s_worldViewportW3ds : mc->width;
+		const int worldViewportH = (s_worldViewportH3ds > 0) ? s_worldViewportH3ds : mc->height;
+		glViewport(0, 0, worldViewportW, worldViewportH);
+#else
 		glViewport(0, 0, mc->width, mc->height);
+#endif
 		setupClearColor(a);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1253,6 +1330,16 @@ void GameRenderer::renderItemInHand(float a, int eye) {
 void GameRenderer::onGraphicsReset()
 {
 	if (itemInHandRenderer) itemInHandRenderer->onGraphicsReset();
+#ifdef __3DS__
+	// IDs may no longer point to valid GPU objects after a graphics reset.
+	// They will be recreated lazily the next time Half Resolution is used.
+	s_lowResTopTex = 0;
+	s_lowResTopFbo = 0;
+	s_lowResTopW = 0;
+	s_lowResTopH = 0;
+	s_worldViewportW3ds = 0;
+	s_worldViewportH3ds = 0;
+#endif
 }
 
 void GameRenderer::saveMatrices()

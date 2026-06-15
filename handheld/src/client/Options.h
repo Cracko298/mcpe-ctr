@@ -56,6 +56,9 @@ public:
 		static const Option FIELD_OF_VIEW;
 		static const Option MIP_MAPPING;
 		static const Option FAR_TERRAIN_PREVIEW;
+		static const Option HALF_RESOLUTION;
+		static const Option SOFT_ANTIALIAS;
+		static const Option LAZY_SD_SAVES;
 
 		/*
 		 s tatic Option* getItem(int id) {    *
@@ -128,6 +131,8 @@ public:
 	bool ambientOcclusion;
 	bool mipMapping;
 	bool farTerrainPreview;
+	bool halfResolution;
+	bool softAntialias;
 	bool useMouseForDigging;
 	bool isLeftHanded;
 	//std::string skin;
@@ -175,6 +180,7 @@ public:
 	bool autoJump;
 	bool autosave;
 	bool proceduralAutosave;
+	bool lazySDSaves;
 	bool xybaCamera;
 	float pixelsPerMillimeter;
 	float fieldOfView;
@@ -236,6 +242,9 @@ public:
 		if (option == &Option::PROCEDURAL_AUTOSAVE) proceduralAutosave = !proceduralAutosave;
 		if (option == &Option::MIP_MAPPING) mipMapping = !mipMapping;
 		if (option == &Option::FAR_TERRAIN_PREVIEW) farTerrainPreview = !farTerrainPreview;
+		if (option == &Option::HALF_RESOLUTION) halfResolution = !halfResolution;
+		if (option == &Option::SOFT_ANTIALIAS) softAntialias = !softAntialias;
+		if (option == &Option::LAZY_SD_SAVES) lazySDSaves = !lazySDSaves;
 		if (option == &Option::ANAGLYPH) {
 			anaglyph3d = !anaglyph3d;
 			//minecraft->textures.reloadAll();
@@ -308,6 +317,12 @@ public:
 			return mipMapping;
 		if (item == &Option::FAR_TERRAIN_PREVIEW)
 			return farTerrainPreview;
+		if (item == &Option::HALF_RESOLUTION)
+			return halfResolution;
+		if (item == &Option::SOFT_ANTIALIAS)
+			return softAntialias;
+		if (item == &Option::LAZY_SD_SAVES)
+			return lazySDSaves;
 		return false;
 	}
 

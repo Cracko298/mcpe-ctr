@@ -55,6 +55,7 @@ private:
 
 #ifdef __3DS__
 	void renderDualScreen3ds(float a);
+	void renderLevelTop3ds(float a);
 #endif
 
 	bool updateFreeformPickDirection(float a, Vec3& outDir);
