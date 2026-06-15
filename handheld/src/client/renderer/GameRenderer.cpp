@@ -525,7 +525,7 @@ void GameRenderer::renderLevel(float a) {
 		setupClearColor(a);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glEnable2(GL_CULL_FACE);
+        glDisable2(GL_CULL_FACE);
 
 		#ifdef __3DS__
 		CtrFrameTiming::markEnd(CtrFrameTiming::PICK);
@@ -879,9 +879,8 @@ void GameRenderer::moveCameraToPlayer(float a) {
     if (!mc->options.fixedCamera) {
         glRotatef2(player->xRotO + (player->xRot - player->xRotO) * a, 1.0f, 0.0f, 0.0f);
         glRotatef2(player->yRotO + (player->yRot - player->yRotO) * a + 180, 0, 1, 0);
-		//if (_t_keepPic > 0)
 	}
-    glTranslatef2(0, heightOffset, 0);
+    glTranslatef2(0.0f, heightOffset, -0.1f);
 }
 
 /*private*/
