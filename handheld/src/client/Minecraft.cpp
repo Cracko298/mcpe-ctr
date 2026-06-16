@@ -1722,7 +1722,10 @@ const char* Minecraft::getProgressMessage()
 
 bool Minecraft::isLevelGenerated()
 {
-	return level != NULL && !isGeneratingLevel;
+	// "Generation thread finished" is not the same as "safe to render".
+	// The main thread still has to run _levelGenerated(), which creates/attaches
+	// the player, level renderer, particle engine, GUI state, and camera target.
+	return level != NULL && !isGeneratingLevel && _hasSignaledGeneratingLevelFinished;
 }
 
 LevelStorageSource* Minecraft::getLevelSource()
