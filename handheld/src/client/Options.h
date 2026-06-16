@@ -242,8 +242,8 @@ public:
 		if (option == &Option::PROCEDURAL_AUTOSAVE) proceduralAutosave = !proceduralAutosave;
 		if (option == &Option::MIP_MAPPING) mipMapping = !mipMapping;
 		if (option == &Option::FAR_TERRAIN_PREVIEW) farTerrainPreview = !farTerrainPreview;
-		if (option == &Option::HALF_RESOLUTION) halfResolution = !halfResolution;
-		if (option == &Option::SOFT_ANTIALIAS) softAntialias = !softAntialias;
+		if (option == &Option::HALF_RESOLUTION) halfResolution = false;
+		if (option == &Option::SOFT_ANTIALIAS) softAntialias = false;
 		if (option == &Option::LAZY_SD_SAVES) lazySDSaves = !lazySDSaves;
 		if (option == &Option::ANAGLYPH) {
 			anaglyph3d = !anaglyph3d;
@@ -318,9 +318,9 @@ public:
 		if (item == &Option::FAR_TERRAIN_PREVIEW)
 			return farTerrainPreview;
 		if (item == &Option::HALF_RESOLUTION)
-			return halfResolution;
+			return false;
 		if (item == &Option::SOFT_ANTIALIAS)
-			return softAntialias;
+			return false;
 		if (item == &Option::LAZY_SD_SAVES)
 			return lazySDSaves;
 		return false;

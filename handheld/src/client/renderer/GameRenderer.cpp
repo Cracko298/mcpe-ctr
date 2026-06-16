@@ -49,40 +49,13 @@ static const int kBottomRenderTarget = 2;
 static const int kBottomScreenWidth = NOVA_SCREEN_BOTTOM_H;
 static const int kBottomScreenHeight = NOVA_SCREEN_BOTTOM_W;
 
-// Optional low-res world target.  The HUD/menus still draw at native size; only
-// the expensive 3D world pass is rendered at 200x120 and then upscaled.
-static const int kHalfTopWidth = NOVA_SCREEN_W / 2;
-static const int kHalfTopHeight = NOVA_SCREEN_H / 2;
-static GLuint s_lowResTopTex = 0;
-static GLuint s_lowResTopFbo = 0;
-static int s_lowResTopW = 0;
-static int s_lowResTopH = 0;
-static int s_worldViewportW3ds = 0;
-static int s_worldViewportH3ds = 0;
-
-static bool ensureLowResTopTarget3ds(int w, int h) {
-	if (s_lowResTopTex != 0 && s_lowResTopFbo != 0 && s_lowResTopW == w && s_lowResTopH == h)
-		return true;
-
-	s_lowResTopTex = 0;
-	s_lowResTopFbo = 0;
-	s_lowResTopW = 0;
-	s_lowResTopH = 0;
-	novaCreateRenderTextureFBO(w, h, 1, &s_lowResTopTex, &s_lowResTopFbo);
-	if (s_lowResTopTex == 0 || s_lowResTopFbo == 0)
-		return false;
-
-	s_lowResTopW = w;
-	s_lowResTopH = h;
-	return true;
-}
-
-static void setLowResTopFilter3ds(bool soft) {
-	if (s_lowResTopTex == 0) return;
-	glBindTexture2(GL_TEXTURE_2D, s_lowResTopTex);
-	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, soft ? GL_LINEAR : GL_NEAREST);
-	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, soft ? GL_LINEAR : GL_NEAREST);
-}
+// Half-resolution offscreen rendering was removed.
+//
+// The previous implementation rendered the world into a custom FBO, then blitted
+// it back to the top screen. On 3DS/NovaGL that path is fragile because raw
+// framebuffer changes can desync NovaGL/Citro3D state during world entry, which
+// caused hangs/crashes around the first in-world frame after chunk generation.
+// Keep the normal top-screen render path only.
 #endif
 
 GameRenderer::GameRenderer( Minecraft* mc )
@@ -440,50 +413,10 @@ void GameRenderer::renderDualScreen3ds(float a) {
 
 #ifdef __3DS__
 void GameRenderer::renderLevelTop3ds(float a) {
-	const bool nativeStereo = (g_stereoNativeActive && g_stereoEyeCount > 1);
-	const bool lowResWorld = mc->options.halfResolution && !mc->options.anaglyph3d && !nativeStereo;
-
-	if (!lowResWorld) {
-		renderLevel(a);
-		return;
-	}
-
-	// The progress screen can disappear in the frame after generation finishes but
-	// before Minecraft::_levelGenerated() has installed the player/level renderer.
-	// Do not create/blit the offscreen target in that transition frame; the normal
-	// renderer will safely no-op until the world is fully attached.
-	if (mc->player == NULL || mc->levelRenderer == NULL || mc->particleEngine == NULL) {
-		renderLevel(a);
-		return;
-	}
-
-	if (!ensureLowResTopTarget3ds(kHalfTopWidth, kHalfTopHeight)) {
-		renderLevel(a);
-		return;
-	}
-
-	// Render the world into the smaller offscreen target.  Raw FBO binds bypass
-	// NovaGL's render-target cache, so invalidate the cache immediately after each
-	// manual bind.  Without this, nova_set_render_target(kTopRenderTarget) may be
-	// skipped as a cached no-op while the real GL target is still not the top screen,
-	// which can leave the first post-load frame stuck on the last progress message.
-	glBindFramebuffer(GL_FRAMEBUFFER, s_lowResTopFbo);
-	nova_invalidate_state_cache();
-	setLowResTopFilter3ds(mc->options.softAntialias);
-	s_worldViewportW3ds = kHalfTopWidth;
-	s_worldViewportH3ds = kHalfTopHeight;
+	// Half-resolution FBO rendering has been removed. The wrapper remains so the
+	// 3DS top-screen path can keep calling a single function, but it now uses the
+	// same safe renderer as the rest of the game.
 	renderLevel(a);
-	s_worldViewportW3ds = 0;
-	s_worldViewportH3ds = 0;
-
-	// Blit/upscale into the native top-screen target.  Soft AA is just bilinear
-	// filtering on that blit, so it avoids a second geometry pass or MSAA target.
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	nova_invalidate_state_cache();
-	nova_set_render_target(kTopRenderTarget);
-	glViewport(0, 0, mc->width, mc->height);
-	novaBlitTargetToFBO(s_lowResTopFbo, 0);
-	nova_invalidate_state_cache();
 }
 #endif
 
@@ -528,13 +461,7 @@ void GameRenderer::renderLevel(float a) {
 #endif
 
 		TIMER_POP_PUSH("clear");
-#ifdef __3DS__
-		const int worldViewportW = (s_worldViewportW3ds > 0) ? s_worldViewportW3ds : mc->width;
-		const int worldViewportH = (s_worldViewportH3ds > 0) ? s_worldViewportH3ds : mc->height;
-		glViewport(0, 0, worldViewportW, worldViewportH);
-#else
 		glViewport(0, 0, mc->width, mc->height);
-#endif
 		setupClearColor(a);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1344,14 +1271,7 @@ void GameRenderer::onGraphicsReset()
 {
 	if (itemInHandRenderer) itemInHandRenderer->onGraphicsReset();
 #ifdef __3DS__
-	// IDs may no longer point to valid GPU objects after a graphics reset.
-	// They will be recreated lazily the next time Half Resolution is used.
-	s_lowResTopTex = 0;
-	s_lowResTopFbo = 0;
-	s_lowResTopW = 0;
-	s_lowResTopH = 0;
-	s_worldViewportW3ds = 0;
-	s_worldViewportH3ds = 0;
+	// No half-resolution FBO objects are owned by GameRenderer anymore.
 #endif
 }
 
