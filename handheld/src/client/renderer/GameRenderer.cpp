@@ -49,13 +49,86 @@ static const int kBottomRenderTarget = 2;
 static const int kBottomScreenWidth = NOVA_SCREEN_BOTTOM_H;
 static const int kBottomScreenHeight = NOVA_SCREEN_BOTTOM_W;
 
-// Half-resolution offscreen rendering was removed.
+// FBO-free half-resolution world rendering.
 //
-// The previous implementation rendered the world into a custom FBO, then blitted
-// it back to the top screen. On 3DS/NovaGL that path is fragile because raw
-// framebuffer changes can desync NovaGL/Citro3D state during world entry, which
-// caused hangs/crashes around the first in-world frame after chunk generation.
-// Keep the normal top-screen render path only.
+// This intentionally does NOT create or bind a custom framebuffer object. The
+// world is rendered into a 200x120 viewport on the normal top-screen target,
+// copied from the current framebuffer into a small texture, then drawn back as a
+// fullscreen 400x240 quad. HUD/menus are rendered afterwards at native size.
+//
+// This keeps NovaGL/Citro3D render-target ownership intact and avoids the old
+// FBO/blit path that could hang during the first in-world frame after chunk gen.
+static const int kHalfTopWidth = NOVA_SCREEN_W / 2;
+static const int kHalfTopHeight = NOVA_SCREEN_H / 2;
+static const int kHalfTopTexWidth = 256;
+static const int kHalfTopTexHeight = 128;
+static GLuint s_halfTopCopyTex = 0;
+static bool s_halfTopCopyTexReady = false;
+static int s_worldViewportW3ds = 0;
+static int s_worldViewportH3ds = 0;
+
+static bool ensureHalfTopCopyTexture3ds() {
+	if (s_halfTopCopyTexReady && s_halfTopCopyTex != 0) return true;
+
+	if (s_halfTopCopyTex == 0) {
+		glGenTextures(1, &s_halfTopCopyTex);
+		if (s_halfTopCopyTex == 0) return false;
+	}
+
+	glBindTexture2(GL_TEXTURE_2D, s_halfTopCopyTex);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri2(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexImage2D2(GL_TEXTURE_2D, 0, GL_RGBA, kHalfTopTexWidth, kHalfTopTexHeight,
+		0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+	s_halfTopCopyTexReady = true;
+	return true;
+}
+
+static void drawHalfTopCopyFullscreen3ds(Minecraft* mc) {
+	if (!ensureHalfTopCopyTexture3ds()) return;
+
+	glBindTexture2(GL_TEXTURE_2D, s_halfTopCopyTex);
+
+	// Copy the low-res world image out of the normal top-screen framebuffer.
+	// This is a framebuffer read/copy, not an FBO bind.
+	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, kHalfTopWidth, kHalfTopHeight);
+
+	// Draw the copied image back over the full top screen. Use our own simple
+	// pixel-space projection instead of setupGuiScreen(), because GUI scale must
+	// not affect the upscale.
+	glViewport(0, 0, mc->width, mc->height);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity2();
+	glOrthof(0, (GLfloat)mc->width, (GLfloat)mc->height, 0, -1, 1);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity2();
+
+	glDisable2(GL_DEPTH_TEST);
+	glDisable2(GL_CULL_FACE);
+	glDisable2(GL_FOG);
+	glDisable2(GL_ALPHA_TEST);
+	glDisable2(GL_BLEND);
+	glEnable2(GL_TEXTURE_2D);
+	glDepthMask(GL_FALSE);
+
+	const float u1 = (float)kHalfTopWidth / (float)kHalfTopTexWidth;
+	const float v1 = (float)kHalfTopHeight / (float)kHalfTopTexHeight;
+	Tesselator& t = Tesselator::instance;
+	t.begin();
+	t.color(0xffffffff);
+	// glCopyTexSubImage2D copies from OpenGL's bottom-left origin, while the GUI
+	// projection has y=0 at the top. Flip V so the image is not upside down.
+	t.vertexUV(0,                (float)mc->height, 0, 0.0f, 0.0f);
+	t.vertexUV((float)mc->width, (float)mc->height, 0, u1,   0.0f);
+	t.vertexUV((float)mc->width, 0,                 0, u1,   v1);
+	t.vertexUV(0,                0,                 0, 0.0f, v1);
+	t.draw();
+
+	glDepthMask(GL_TRUE);
+}
 #endif
 
 GameRenderer::GameRenderer( Minecraft* mc )
@@ -413,10 +486,32 @@ void GameRenderer::renderDualScreen3ds(float a) {
 
 #ifdef __3DS__
 void GameRenderer::renderLevelTop3ds(float a) {
-	// Half-resolution FBO rendering has been removed. The wrapper remains so the
-	// 3DS top-screen path can keep calling a single function, but it now uses the
-	// same safe renderer as the rest of the game.
+	const bool nativeStereo = (g_stereoNativeActive && g_stereoEyeCount > 1);
+	const bool lowResWorld = mc->options.halfResolution && !mc->options.anaglyph3d && !nativeStereo;
+
+	if (!lowResWorld) {
+		renderLevel(a);
+		return;
+	}
+
+	// Avoid the fragile world-entry transition frame. The normal renderer will
+	// safely no-op or render native until all in-world render objects exist.
+	if (mc->player == NULL || mc->levelRenderer == NULL || mc->particleEngine == NULL) {
+		renderLevel(a);
+		return;
+	}
+
+	// Render only the expensive 3D world pass at 200x120 on the normal top target.
+	// No custom FBO is bound here.
+	s_worldViewportW3ds = kHalfTopWidth;
+	s_worldViewportH3ds = kHalfTopHeight;
 	renderLevel(a);
+	s_worldViewportW3ds = 0;
+	s_worldViewportH3ds = 0;
+
+	// Expand that low-res framebuffer region to 400x240. The HUD is drawn later
+	// by renderDualScreen3ds(), so UI stays sharp.
+	drawHalfTopCopyFullscreen3ds(mc);
 }
 #endif
 
@@ -461,7 +556,13 @@ void GameRenderer::renderLevel(float a) {
 #endif
 
 		TIMER_POP_PUSH("clear");
+#ifdef __3DS__
+		const int worldViewportW = (s_worldViewportW3ds > 0) ? s_worldViewportW3ds : mc->width;
+		const int worldViewportH = (s_worldViewportH3ds > 0) ? s_worldViewportH3ds : mc->height;
+		glViewport(0, 0, worldViewportW, worldViewportH);
+#else
 		glViewport(0, 0, mc->width, mc->height);
+#endif
 		setupClearColor(a);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1271,7 +1372,11 @@ void GameRenderer::onGraphicsReset()
 {
 	if (itemInHandRenderer) itemInHandRenderer->onGraphicsReset();
 #ifdef __3DS__
-	// No half-resolution FBO objects are owned by GameRenderer anymore.
+	// Texture names may no longer point to valid GPU objects after a graphics reset.
+	s_halfTopCopyTex = 0;
+	s_halfTopCopyTexReady = false;
+	s_worldViewportW3ds = 0;
+	s_worldViewportH3ds = 0;
 #endif
 }
 

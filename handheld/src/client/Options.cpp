@@ -345,9 +345,9 @@ void Options::update() {
 		if (key == OptionStrings::Graphics_FieldOfView) readFloat(value, fieldOfView);
 		if (key == OptionStrings::Graphics_MipMapping) readBool(value, mipMapping);
 		if (key == OptionStrings::Graphics_FarTerrainPreview) readBool(value, farTerrainPreview);
-		// Obsolete 3DS half-resolution options are intentionally ignored. The
-		// renderer no longer owns a low-res FBO/blit path.
-		if (key == OptionStrings::Graphics_HalfResolution) halfResolution = false;
+		if (key == OptionStrings::Graphics_HalfResolution) readBool(value, halfResolution);
+		// Soft AA belonged to the removed FBO blit path. The new no-FBO scaler is
+		// deliberately nearest-neighbor/pixelated, so keep this old key ignored.
 		if (key == OptionStrings::Graphics_SoftAntialias) softAntialias = false;
 		if (key == OptionStrings::Audio_Music) readFloat(value, music);
 		if (key == OptionStrings::Audio_Sound) readFloat(value, sound);
@@ -390,8 +390,8 @@ void Options::save() {
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_FieldOfView, fieldOfView);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_MipMapping, mipMapping);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_FarTerrainPreview, farTerrainPreview);
-	// Half-resolution/Soft-AA were tied to the removed low-res FBO path. Do not
-	// write them back to options.txt.
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_HalfResolution, halfResolution);
+	// Soft-AA was tied to the removed FBO path. Do not write it back to options.txt.
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Fancy, fancyGraphics);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_AmbientOcclusion, ambientOcclusion);
 	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Anaglyph3d, anaglyph3d);

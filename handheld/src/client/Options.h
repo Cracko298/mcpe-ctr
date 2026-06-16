@@ -242,7 +242,7 @@ public:
 		if (option == &Option::PROCEDURAL_AUTOSAVE) proceduralAutosave = !proceduralAutosave;
 		if (option == &Option::MIP_MAPPING) mipMapping = !mipMapping;
 		if (option == &Option::FAR_TERRAIN_PREVIEW) farTerrainPreview = !farTerrainPreview;
-		if (option == &Option::HALF_RESOLUTION) halfResolution = false;
+		if (option == &Option::HALF_RESOLUTION) halfResolution = !halfResolution;
 		if (option == &Option::SOFT_ANTIALIAS) softAntialias = false;
 		if (option == &Option::LAZY_SD_SAVES) lazySDSaves = !lazySDSaves;
 		if (option == &Option::ANAGLYPH) {
@@ -318,7 +318,7 @@ public:
 		if (item == &Option::FAR_TERRAIN_PREVIEW)
 			return farTerrainPreview;
 		if (item == &Option::HALF_RESOLUTION)
-			return false;
+			return halfResolution;
 		if (item == &Option::SOFT_ANTIALIAS)
 			return false;
 		if (item == &Option::LAZY_SD_SAVES)
