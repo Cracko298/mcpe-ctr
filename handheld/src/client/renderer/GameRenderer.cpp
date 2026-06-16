@@ -448,15 +448,27 @@ void GameRenderer::renderLevelTop3ds(float a) {
 		return;
 	}
 
+	// The progress screen can disappear in the frame after generation finishes but
+	// before Minecraft::_levelGenerated() has installed the player/level renderer.
+	// Do not create/blit the offscreen target in that transition frame; the normal
+	// renderer will safely no-op until the world is fully attached.
+	if (mc->player == NULL || mc->levelRenderer == NULL || mc->particleEngine == NULL) {
+		renderLevel(a);
+		return;
+	}
+
 	if (!ensureLowResTopTarget3ds(kHalfTopWidth, kHalfTopHeight)) {
 		renderLevel(a);
 		return;
 	}
 
-	// Render the world into the smaller offscreen target.  renderLevel() reads
-	// s_worldViewport* so its viewport matches the FBO instead of the full screen.
-	nova_set_render_target(kTopRenderTarget);
+	// Render the world into the smaller offscreen target.  Raw FBO binds bypass
+	// NovaGL's render-target cache, so invalidate the cache immediately after each
+	// manual bind.  Without this, nova_set_render_target(kTopRenderTarget) may be
+	// skipped as a cached no-op while the real GL target is still not the top screen,
+	// which can leave the first post-load frame stuck on the last progress message.
 	glBindFramebuffer(GL_FRAMEBUFFER, s_lowResTopFbo);
+	nova_invalidate_state_cache();
 	setLowResTopFilter3ds(mc->options.softAntialias);
 	s_worldViewportW3ds = kHalfTopWidth;
 	s_worldViewportH3ds = kHalfTopHeight;
@@ -467,6 +479,7 @@ void GameRenderer::renderLevelTop3ds(float a) {
 	// Blit/upscale into the native top-screen target.  Soft AA is just bilinear
 	// filtering on that blit, so it avoids a second geometry pass or MSAA target.
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	nova_invalidate_state_cache();
 	nova_set_render_target(kTopRenderTarget);
 	glViewport(0, 0, mc->width, mc->height);
 	novaBlitTargetToFBO(s_lowResTopFbo, 0);
